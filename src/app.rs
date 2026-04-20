@@ -14,6 +14,7 @@ use crate::keyboard::keymap::KeymapState;
 use crate::keyboard::keymap::Direction;
 use crate::ui::device_selector::DeviceSelectorWidget;
 use crate::ui::key_picker::{KeyPickerState, KeyPickerWidget};
+use crate::ui::key_tester::{KeyTesterState, KeyTesterWidget};
 use crate::ui::keymap_editor::KeymapEditorWidget;
 use crate::ui::status_bar::{StatusBarWidget, StatusMessage};
 
@@ -21,6 +22,7 @@ use crate::ui::status_bar::{StatusBarWidget, StatusMessage};
 pub enum Screen {
     DeviceSelect,
     KeymapEditor,
+    KeyTester,
 }
 
 pub struct App {
@@ -39,6 +41,9 @@ pub struct App {
 
     // Key picker
     pub key_picker: KeyPickerState,
+
+    // Key tester
+    pub key_tester: KeyTesterState,
 
     // Status
     pub status: Option<StatusMessage>,
@@ -59,6 +64,7 @@ impl App {
             positioned_keys: Vec::new(),
             keymap: None,
             key_picker: KeyPickerState::new(),
+            key_tester: KeyTesterState::new(),
             status: None,
             definition_path,
         }
@@ -172,6 +178,7 @@ impl App {
                 match self.screen {
                     Screen::DeviceSelect => self.handle_device_select_key(key),
                     Screen::KeymapEditor => self.handle_editor_key(key),
+                    Screen::KeyTester => self.handle_key_tester_key(key),
                 }
             }
         }
@@ -200,7 +207,23 @@ impl App {
                 }
             }
             KeyCode::Char('r') => self.scan(),
+            KeyCode::Char('t') => {
+                self.key_tester.reset();
+                self.screen = Screen::KeyTester;
+            }
             _ => {}
+        }
+    }
+
+    fn handle_key_tester_key(&mut self, key: KeyEvent) {
+        // Ctrl+R resets all highlights
+        if key.code == KeyCode::Char('r') && key.modifiers.contains(KeyModifiers::CONTROL) {
+            self.key_tester.reset();
+            return;
+        }
+        let should_exit = self.key_tester.register_key(key.code, key.modifiers);
+        if should_exit {
+            self.screen = Screen::DeviceSelect;
         }
     }
 
@@ -292,6 +315,12 @@ impl App {
                     devices: &self.devices,
                     selected: self.device_selected,
                     scanning: false,
+                };
+                frame.render_widget(widget, area);
+            }
+            Screen::KeyTester => {
+                let widget = KeyTesterWidget {
+                    state: &self.key_tester,
                 };
                 frame.render_widget(widget, area);
             }

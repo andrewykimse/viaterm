@@ -79,6 +79,8 @@ impl Widget for DeviceSelectorWidget<'_> {
             Span::raw(" Connect  "),
             Span::styled("r", Style::default().fg(Color::Cyan)),
             Span::raw(" Rescan  "),
+            Span::styled("t", Style::default().fg(Color::Cyan)),
+            Span::raw(" Key Tester  "),
             Span::styled("q", Style::default().fg(Color::Cyan)),
             Span::raw(" Quit"),
         ]))
