@@ -114,7 +114,7 @@ impl App {
         let layers = conn.read_all_layers(&definition.matrix)?;
 
         // Parse layout
-        let keys = parse_layout(&definition.layouts.keymap)?;
+        let keys = parse_layout(&definition.layouts);
 
         let mut keymap = KeymapState::new(layers, definition.matrix.clone());
         if !keys.is_empty() {

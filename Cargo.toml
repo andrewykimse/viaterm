@@ -9,9 +9,6 @@ description = "Terminal-based VIA keyboard configurator"
 # VIA protocol + USB HID
 qmk-via-api = "0.7"
 
-# KLE layout parsing
-kle-serial = "0.3"
-
 # Terminal UI
 ratatui = "0.30"
 crossterm = "0.28"
