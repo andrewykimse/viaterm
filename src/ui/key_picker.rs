@@ -6,9 +6,16 @@ use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Tabs, W
 
 use crate::keyboard::keycodes::{KeycodeCategory, KeycodeEntry, filtered_keycodes, search_keycodes};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PickerMode {
+    Normal,
+    Insert,
+}
+
 /// State for the keycode picker popup.
 pub struct KeyPickerState {
     pub active: bool,
+    pub mode: PickerMode,
     pub category: KeycodeCategory,
     pub search_query: String,
     pub selected_index: usize,
@@ -19,6 +26,7 @@ impl KeyPickerState {
     pub fn new() -> Self {
         let mut state = Self {
             active: false,
+            mode: PickerMode::Normal,
             category: KeycodeCategory::Basic,
             search_query: String::new(),
             selected_index: 0,
@@ -30,10 +38,19 @@ impl KeyPickerState {
 
     pub fn open(&mut self) {
         self.active = true;
+        self.mode = PickerMode::Normal;
         self.search_query.clear();
         self.selected_index = 0;
         self.category = KeycodeCategory::Basic;
         self.refresh_results();
+    }
+
+    pub fn enter_insert(&mut self) {
+        self.mode = PickerMode::Insert;
+    }
+
+    pub fn enter_normal(&mut self) {
+        self.mode = PickerMode::Normal;
     }
 
     pub fn close(&mut self) {
@@ -137,11 +154,23 @@ impl Widget for KeyPickerWidget<'_> {
         tabs.render(chunks[0], buf);
 
         // Search input
-        let search = Paragraph::new(Line::from(vec![
-            Span::styled("/ ", Style::default().fg(Color::Cyan)),
-            Span::raw(&self.state.search_query),
-            Span::styled("_", Style::default().fg(Color::DarkGray)),
-        ]));
+        let search = if self.state.mode == PickerMode::Insert {
+            Paragraph::new(Line::from(vec![
+                Span::styled("/ ", Style::default().fg(Color::Cyan)),
+                Span::raw(&self.state.search_query),
+                Span::styled("_", Style::default().fg(Color::DarkGray)),
+            ]))
+        } else if self.state.search_query.is_empty() {
+            Paragraph::new(Line::from(vec![
+                Span::styled("/ ", Style::default().fg(Color::DarkGray)),
+                Span::styled("search...", Style::default().fg(Color::DarkGray)),
+            ]))
+        } else {
+            Paragraph::new(Line::from(vec![
+                Span::styled("/ ", Style::default().fg(Color::DarkGray)),
+                Span::raw(&self.state.search_query),
+            ]))
+        };
         search.render(chunks[1], buf);
 
         // Results
@@ -178,16 +207,31 @@ impl Widget for KeyPickerWidget<'_> {
         list.render(chunks[2], buf);
 
         // Help
-        let help = Paragraph::new(Line::from(vec![
-            Span::styled("↑↓", Style::default().fg(Color::Cyan)),
-            Span::raw(" Select  "),
-            Span::styled("Enter", Style::default().fg(Color::Cyan)),
-            Span::raw(" Confirm  "),
-            Span::styled("←→", Style::default().fg(Color::Cyan)),
-            Span::raw(" Category  "),
-            Span::styled("Esc", Style::default().fg(Color::Cyan)),
-            Span::raw(" Cancel"),
-        ]));
+        let help = if self.state.mode == PickerMode::Normal {
+            Paragraph::new(Line::from(vec![
+                Span::styled("jk/↑↓", Style::default().fg(Color::Cyan)),
+                Span::raw(" Select  "),
+                Span::styled("hl/←→", Style::default().fg(Color::Cyan)),
+                Span::raw(" Category  "),
+                Span::styled("/", Style::default().fg(Color::Cyan)),
+                Span::raw(" Search  "),
+                Span::styled("Enter", Style::default().fg(Color::Cyan)),
+                Span::raw(" Confirm  "),
+                Span::styled("Esc", Style::default().fg(Color::Cyan)),
+                Span::raw(" Cancel"),
+            ]))
+        } else {
+            Paragraph::new(Line::from(vec![
+                Span::styled("↑↓", Style::default().fg(Color::Cyan)),
+                Span::raw(" Select  "),
+                Span::styled("Enter", Style::default().fg(Color::Cyan)),
+                Span::raw(" Confirm  "),
+                Span::styled("←→", Style::default().fg(Color::Cyan)),
+                Span::raw(" Category  "),
+                Span::styled("Esc", Style::default().fg(Color::Cyan)),
+                Span::raw(" Normal mode"),
+            ]))
+        };
         help.render(chunks[3], buf);
     }
 }

@@ -283,26 +283,50 @@ impl App {
     }
 
     fn handle_picker_key(&mut self, key: KeyEvent) {
-        match key.code {
-            KeyCode::Esc => self.key_picker.close(),
-            KeyCode::Up => self.key_picker.move_up(),
-            KeyCode::Down => self.key_picker.move_down(),
-            KeyCode::Left => self.key_picker.prev_category(),
-            KeyCode::Right => self.key_picker.next_category(),
-            KeyCode::Backspace => self.key_picker.backspace(),
-            KeyCode::Enter => {
-                if let Some(keycode) = self.key_picker.selected_keycode() {
-                    if let Some(keymap) = &mut self.keymap {
-                        if let Some(key_idx) = keymap.selected_key {
-                            let key = &self.positioned_keys[key_idx];
-                            keymap.set_keycode(key, keycode);
+        use crate::ui::key_picker::PickerMode;
+
+        match self.key_picker.mode {
+            PickerMode::Normal => match key.code {
+                KeyCode::Esc => self.key_picker.close(),
+                KeyCode::Up | KeyCode::Char('k') => self.key_picker.move_up(),
+                KeyCode::Down | KeyCode::Char('j') => self.key_picker.move_down(),
+                KeyCode::Left | KeyCode::Char('h') => self.key_picker.prev_category(),
+                KeyCode::Right | KeyCode::Char('l') => self.key_picker.next_category(),
+                KeyCode::Char('/') => self.key_picker.enter_insert(),
+                KeyCode::Enter => {
+                    if let Some(keycode) = self.key_picker.selected_keycode() {
+                        if let Some(keymap) = &mut self.keymap {
+                            if let Some(key_idx) = keymap.selected_key {
+                                let key = &self.positioned_keys[key_idx];
+                                keymap.set_keycode(key, keycode);
+                            }
                         }
+                        self.key_picker.close();
                     }
-                    self.key_picker.close();
                 }
-            }
-            KeyCode::Char(c) => self.key_picker.type_char(c),
-            _ => {}
+                _ => {}
+            },
+            PickerMode::Insert => match key.code {
+                KeyCode::Esc => self.key_picker.enter_normal(),
+                KeyCode::Up => self.key_picker.move_up(),
+                KeyCode::Down => self.key_picker.move_down(),
+                KeyCode::Left => self.key_picker.prev_category(),
+                KeyCode::Right => self.key_picker.next_category(),
+                KeyCode::Backspace => self.key_picker.backspace(),
+                KeyCode::Enter => {
+                    if let Some(keycode) = self.key_picker.selected_keycode() {
+                        if let Some(keymap) = &mut self.keymap {
+                            if let Some(key_idx) = keymap.selected_key {
+                                let key = &self.positioned_keys[key_idx];
+                                keymap.set_keycode(key, keycode);
+                            }
+                        }
+                        self.key_picker.close();
+                    }
+                }
+                KeyCode::Char(c) => self.key_picker.type_char(c),
+                _ => {}
+            },
         }
     }
 
