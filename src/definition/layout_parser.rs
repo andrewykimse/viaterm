@@ -1,4 +1,4 @@
-use super::schema::Layouts;
+use super::schema::{KeyDefinition, Layouts};
 
 /// A key with its position, size, and matrix coordinates for rendering.
 #[derive(Debug, Clone)]
@@ -20,12 +20,31 @@ pub struct PositionedKey {
 }
 
 /// Convert layout key definitions into positioned keys for rendering.
-/// Filters out decal (decorative) keys since they aren't functional.
+/// Merges in default option keys (option "0" for each group) so that
+/// keys like backspace, enter, etc. that live in optionKeys are included.
 pub fn parse_layout(layouts: &Layouts) -> Vec<PositionedKey> {
-    layouts
-        .keys
+    let mut all_keys: Vec<&KeyDefinition> = layouts.keys.iter().filter(|k| !k.d).collect();
+
+    // Merge default (option "0") keys from each option group
+    for (_group, options) in &layouts.option_keys {
+        if let Some(default_keys) = options.get("0") {
+            for key in default_keys {
+                if !key.d {
+                    all_keys.push(key);
+                }
+            }
+        }
+    }
+
+    // Sort by position for consistent navigation order (top-to-bottom, left-to-right)
+    all_keys.sort_by(|a, b| {
+        a.y.partial_cmp(&b.y)
+            .unwrap()
+            .then(a.x.partial_cmp(&b.x).unwrap())
+    });
+
+    all_keys
         .iter()
-        .filter(|k| !k.d) // skip decals
         .enumerate()
         .map(|(i, k)| PositionedKey {
             x: k.x,

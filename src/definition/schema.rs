@@ -39,8 +39,11 @@ pub struct Layouts {
     pub keymap: Vec<serde_json::Value>,
     #[serde(default)]
     pub labels: Option<Vec<serde_json::Value>>,
+    /// Layout options keyed by group index, then option index.
+    /// e.g. `{ "0": { "0": [keys...], "1": [keys...] } }`
+    /// Option "0" is the default for each group.
     #[serde(default, rename = "optionKeys")]
-    pub option_keys: serde_json::Value,
+    pub option_keys: std::collections::HashMap<String, std::collections::HashMap<String, Vec<KeyDefinition>>>,
 }
 
 /// A key in the usevia.app layout format.

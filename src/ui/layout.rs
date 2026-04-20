@@ -6,11 +6,16 @@ use ratatui::widgets::Widget;
 use crate::definition::layout_parser::{PositionedKey, layout_bounds};
 use crate::keyboard::keycodes::keycode_label;
 
-/// Cells per KLE unit for rendering.
-const CELLS_X: f64 = 7.0;
-const CELLS_Y: f64 = 3.0;
+/// Minimum cells per key unit (below this labels become unreadable).
+const MIN_CELLS_X: f64 = 4.0;
+const MIN_CELLS_Y: f64 = 2.0;
+
+/// Preferred cells per key unit.
+const PREF_CELLS_X: f64 = 7.0;
+const PREF_CELLS_Y: f64 = 3.0;
 
 /// Widget that renders a 2D keyboard layout with box-drawing characters.
+/// Automatically scales to fit the available terminal area.
 pub struct KeyboardLayoutWidget<'a> {
     pub keys: &'a [PositionedKey],
     pub keycodes: &'a [u16],
@@ -20,9 +25,25 @@ pub struct KeyboardLayoutWidget<'a> {
 
 impl Widget for KeyboardLayoutWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        if self.keys.is_empty() || area.width < 4 || area.height < 2 {
+            return;
+        }
+
         let (layout_w, layout_h) = layout_bounds(self.keys);
-        let total_cells_x = (layout_w * CELLS_X).ceil() as u16 + 1;
-        let total_cells_y = (layout_h * CELLS_Y).ceil() as u16 + 1;
+        if layout_w == 0.0 || layout_h == 0.0 {
+            return;
+        }
+
+        // Compute scale to fit the layout in the available area
+        // Leave 1 cell margin on each side for the border of the rightmost/bottom keys
+        let available_w = (area.width.saturating_sub(1)) as f64;
+        let available_h = (area.height.saturating_sub(1)) as f64;
+
+        let scale_x = (available_w / layout_w).clamp(MIN_CELLS_X, PREF_CELLS_X);
+        let scale_y = (available_h / layout_h).clamp(MIN_CELLS_Y, PREF_CELLS_Y);
+
+        let total_cells_x = (layout_w * scale_x).ceil() as u16 + 1;
+        let total_cells_y = (layout_h * scale_y).ceil() as u16 + 1;
 
         // Center the layout in the available area
         let offset_x = area.x + area.width.saturating_sub(total_cells_x) / 2;
@@ -31,12 +52,12 @@ impl Widget for KeyboardLayoutWidget<'_> {
         for key in self.keys {
             let is_selected = self.selected_key == Some(key.index);
 
-            let x1 = offset_x + (key.x * CELLS_X).round() as u16;
-            let y1 = offset_y + (key.y * CELLS_Y).round() as u16;
-            let x2 = offset_x + ((key.x + key.w) * CELLS_X).round() as u16;
-            let y2 = offset_y + ((key.y + key.h) * CELLS_Y).round() as u16;
+            let x1 = offset_x + (key.x * scale_x).round() as u16;
+            let y1 = offset_y + (key.y * scale_y).round() as u16;
+            let x2 = offset_x + ((key.x + key.w) * scale_x).round() as u16;
+            let y2 = offset_y + ((key.y + key.h) * scale_y).round() as u16;
 
-            // Clip to area
+            // Skip keys entirely outside the area
             if x2 <= area.x || y2 <= area.y || x1 >= area.right() || y1 >= area.bottom() {
                 continue;
             }
@@ -60,12 +81,14 @@ impl Widget for KeyboardLayoutWidget<'_> {
             draw_box(buf, area, x1, y1, x2, y2, border_style, is_selected);
 
             // Draw keycode label centered in the box
-            let matrix_offset =
-                key.row as usize * self.cols as usize + key.col as usize;
+            let matrix_offset = key.row as usize * self.cols as usize + key.col as usize;
             let keycode = self.keycodes.get(matrix_offset).copied().unwrap_or(0);
             let label = keycode_label(keycode);
 
-            let inner_w = (x2 - x1).saturating_sub(2) as usize;
+            let inner_w = (x2.saturating_sub(x1)).saturating_sub(2) as usize;
+            if inner_w == 0 {
+                continue;
+            }
             let label_display = if label.len() > inner_w {
                 &label[..inner_w]
             } else {
@@ -73,7 +96,7 @@ impl Widget for KeyboardLayoutWidget<'_> {
             };
 
             let label_x = x1 + 1 + ((inner_w.saturating_sub(label_display.len())) / 2) as u16;
-            let label_y = y1 + (y2 - y1) / 2;
+            let label_y = y1 + (y2.saturating_sub(y1)) / 2;
 
             if label_y < area.bottom() && label_x < area.right() {
                 buf.set_string(label_x, label_y, label_display, style);
