@@ -141,6 +141,122 @@ impl KeymapState {
             self.selected_key = Some(idx);
         }
     }
+
+    /// Jump to the leftmost key on the same row.
+    pub fn jump_row_start(&mut self, keys: &[PositionedKey]) {
+        let current = match self.selected_key {
+            Some(idx) => &keys[idx],
+            None => {
+                self.selected_key = Some(0);
+                return;
+            }
+        };
+
+        let cy = current.y + current.h / 2.0;
+        let threshold = current.h / 2.0;
+
+        let mut best: Option<(usize, f64)> = None;
+        for key in keys {
+            let ky = key.y + key.h / 2.0;
+            if (ky - cy).abs() < threshold {
+                let kx = key.x;
+                if best.is_none_or(|(_, x)| kx < x) {
+                    best = Some((key.index, kx));
+                }
+            }
+        }
+
+        if let Some((idx, _)) = best {
+            self.selected_key = Some(idx);
+        }
+    }
+
+    /// Jump to the rightmost key on the same row.
+    pub fn jump_row_end(&mut self, keys: &[PositionedKey]) {
+        let current = match self.selected_key {
+            Some(idx) => &keys[idx],
+            None => {
+                self.selected_key = Some(0);
+                return;
+            }
+        };
+
+        let cy = current.y + current.h / 2.0;
+        let threshold = current.h / 2.0;
+
+        let mut best: Option<(usize, f64)> = None;
+        for key in keys {
+            let ky = key.y + key.h / 2.0;
+            if (ky - cy).abs() < threshold {
+                let kx = key.x + key.w;
+                if best.is_none_or(|(_, x)| kx > x) {
+                    best = Some((key.index, kx));
+                }
+            }
+        }
+
+        if let Some((idx, _)) = best {
+            self.selected_key = Some(idx);
+        }
+    }
+
+    /// Jump to the topmost key in the same column.
+    pub fn jump_col_start(&mut self, keys: &[PositionedKey]) {
+        let current = match self.selected_key {
+            Some(idx) => &keys[idx],
+            None => {
+                self.selected_key = Some(0);
+                return;
+            }
+        };
+
+        let cx = current.x + current.w / 2.0;
+        let threshold = current.w / 2.0;
+
+        let mut best: Option<(usize, f64)> = None;
+        for key in keys {
+            let kx = key.x + key.w / 2.0;
+            if (kx - cx).abs() < threshold {
+                let ky = key.y;
+                if best.is_none_or(|(_, y)| ky < y) {
+                    best = Some((key.index, ky));
+                }
+            }
+        }
+
+        if let Some((idx, _)) = best {
+            self.selected_key = Some(idx);
+        }
+    }
+
+    /// Jump to the bottommost key in the same column.
+    pub fn jump_col_end(&mut self, keys: &[PositionedKey]) {
+        let current = match self.selected_key {
+            Some(idx) => &keys[idx],
+            None => {
+                self.selected_key = Some(0);
+                return;
+            }
+        };
+
+        let cx = current.x + current.w / 2.0;
+        let threshold = current.w / 2.0;
+
+        let mut best: Option<(usize, f64)> = None;
+        for key in keys {
+            let kx = key.x + key.w / 2.0;
+            if (kx - cx).abs() < threshold {
+                let ky = key.y + key.h;
+                if best.is_none_or(|(_, y)| ky > y) {
+                    best = Some((key.index, ky));
+                }
+            }
+        }
+
+        if let Some((idx, _)) = best {
+            self.selected_key = Some(idx);
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

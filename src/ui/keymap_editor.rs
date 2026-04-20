@@ -83,6 +83,10 @@ impl Widget for KeymapEditorWidget<'_> {
         let help = Paragraph::new(Line::from(vec![
             Span::styled("hjkl/←↑↓→", Style::default().fg(Color::Cyan)),
             Span::raw(" Move  "),
+            Span::styled("0/$", Style::default().fg(Color::Cyan)),
+            Span::raw(" Row Start/End  "),
+            Span::styled("gg/G", Style::default().fg(Color::Cyan)),
+            Span::raw(" Col Top/Bottom  "),
             Span::styled("Enter", Style::default().fg(Color::Cyan)),
             Span::raw(" Assign  "),
             Span::styled("Tab/S-Tab", Style::default().fg(Color::Cyan)),

@@ -39,6 +39,9 @@ pub struct App {
     pub positioned_keys: Vec<PositionedKey>,
     pub keymap: Option<KeymapState>,
 
+    // Editor vim state
+    pub pending_g: bool,
+
     // Key picker
     pub key_picker: KeyPickerState,
 
@@ -63,6 +66,7 @@ impl App {
             definition: None,
             positioned_keys: Vec::new(),
             keymap: None,
+            pending_g: false,
             key_picker: KeyPickerState::new(),
             key_tester: KeyTesterState::new(),
             status: None,
@@ -228,6 +232,18 @@ impl App {
     }
 
     fn handle_editor_key(&mut self, key: KeyEvent) {
+        // Handle pending g for gg sequence
+        if self.pending_g {
+            self.pending_g = false;
+            if key.code == KeyCode::Char('g') {
+                if let Some(keymap) = &mut self.keymap {
+                    keymap.jump_col_start(&self.positioned_keys);
+                }
+                return;
+            }
+            // Not gg — fall through to handle the key normally
+        }
+
         match key.code {
             KeyCode::Char('q') => self.should_quit = true,
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
@@ -251,6 +267,22 @@ impl App {
             KeyCode::Right | KeyCode::Char('l') => {
                 if let Some(keymap) = &mut self.keymap {
                     keymap.navigate(Direction::Right, &self.positioned_keys);
+                }
+            }
+            KeyCode::Char('0') => {
+                if let Some(keymap) = &mut self.keymap {
+                    keymap.jump_row_start(&self.positioned_keys);
+                }
+            }
+            KeyCode::Char('$') => {
+                if let Some(keymap) = &mut self.keymap {
+                    keymap.jump_row_end(&self.positioned_keys);
+                }
+            }
+            KeyCode::Char('g') => self.pending_g = true,
+            KeyCode::Char('G') => {
+                if let Some(keymap) = &mut self.keymap {
+                    keymap.jump_col_end(&self.positioned_keys);
                 }
             }
             KeyCode::Tab => {
@@ -286,25 +318,39 @@ impl App {
         use crate::ui::key_picker::PickerMode;
 
         match self.key_picker.mode {
-            PickerMode::Normal => match key.code {
-                KeyCode::Esc => self.key_picker.close(),
-                KeyCode::Up | KeyCode::Char('k') => self.key_picker.move_up(),
-                KeyCode::Down | KeyCode::Char('j') => self.key_picker.move_down(),
-                KeyCode::Left | KeyCode::Char('h') => self.key_picker.prev_category(),
-                KeyCode::Right | KeyCode::Char('l') => self.key_picker.next_category(),
-                KeyCode::Char('/') => self.key_picker.enter_insert(),
-                KeyCode::Enter => {
-                    if let Some(keycode) = self.key_picker.selected_keycode() {
-                        if let Some(keymap) = &mut self.keymap {
-                            if let Some(key_idx) = keymap.selected_key {
-                                let key = &self.positioned_keys[key_idx];
-                                keymap.set_keycode(key, keycode);
-                            }
-                        }
-                        self.key_picker.close();
+            PickerMode::Normal => {
+                // Handle pending g for gg sequence
+                if self.key_picker.pending_g {
+                    self.key_picker.pending_g = false;
+                    if key.code == KeyCode::Char('g') {
+                        self.key_picker.move_top();
+                        return;
                     }
+                    // Not gg — fall through to handle the key normally
                 }
-                _ => {}
+
+                match key.code {
+                    KeyCode::Esc => self.key_picker.close(),
+                    KeyCode::Up | KeyCode::Char('k') => self.key_picker.move_up(),
+                    KeyCode::Down | KeyCode::Char('j') => self.key_picker.move_down(),
+                    KeyCode::Left | KeyCode::Char('h') => self.key_picker.prev_category(),
+                    KeyCode::Right | KeyCode::Char('l') => self.key_picker.next_category(),
+                    KeyCode::Char('/') => self.key_picker.enter_insert(),
+                    KeyCode::Char('G') => self.key_picker.move_bottom(),
+                    KeyCode::Char('g') => self.key_picker.pending_g = true,
+                    KeyCode::Enter => {
+                        if let Some(keycode) = self.key_picker.selected_keycode() {
+                            if let Some(keymap) = &mut self.keymap {
+                                if let Some(key_idx) = keymap.selected_key {
+                                    let key = &self.positioned_keys[key_idx];
+                                    keymap.set_keycode(key, keycode);
+                                }
+                            }
+                            self.key_picker.close();
+                        }
+                    }
+                    _ => {}
+                }
             },
             PickerMode::Insert => match key.code {
                 KeyCode::Esc => self.key_picker.enter_normal(),

@@ -16,6 +16,7 @@ pub enum PickerMode {
 pub struct KeyPickerState {
     pub active: bool,
     pub mode: PickerMode,
+    pub pending_g: bool,
     pub category: KeycodeCategory,
     pub search_query: String,
     pub selected_index: usize,
@@ -27,6 +28,7 @@ impl KeyPickerState {
         let mut state = Self {
             active: false,
             mode: PickerMode::Normal,
+            pending_g: false,
             category: KeycodeCategory::Basic,
             search_query: String::new(),
             selected_index: 0,
@@ -39,6 +41,7 @@ impl KeyPickerState {
     pub fn open(&mut self) {
         self.active = true;
         self.mode = PickerMode::Normal;
+        self.pending_g = false;
         self.search_query.clear();
         self.selected_index = 0;
         self.category = KeycodeCategory::Basic;
@@ -94,6 +97,16 @@ impl KeyPickerState {
     pub fn move_down(&mut self) {
         if self.selected_index + 1 < self.cached_results.len() {
             self.selected_index += 1;
+        }
+    }
+
+    pub fn move_top(&mut self) {
+        self.selected_index = 0;
+    }
+
+    pub fn move_bottom(&mut self) {
+        if !self.cached_results.is_empty() {
+            self.selected_index = self.cached_results.len() - 1;
         }
     }
 
@@ -213,6 +226,8 @@ impl Widget for KeyPickerWidget<'_> {
                 Span::raw(" Select  "),
                 Span::styled("hl/←→", Style::default().fg(Color::Cyan)),
                 Span::raw(" Category  "),
+                Span::styled("gg/G", Style::default().fg(Color::Cyan)),
+                Span::raw(" Top/Bottom  "),
                 Span::styled("/", Style::default().fg(Color::Cyan)),
                 Span::raw(" Search  "),
                 Span::styled("Enter", Style::default().fg(Color::Cyan)),
