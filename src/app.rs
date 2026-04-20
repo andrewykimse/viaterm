@@ -41,6 +41,7 @@ pub struct App {
 
     // Editor vim state
     pub pending_g: bool,
+    pub count_prefix: Option<u32>,
 
     // Key picker
     pub key_picker: KeyPickerState,
@@ -67,6 +68,7 @@ impl App {
             positioned_keys: Vec::new(),
             keymap: None,
             pending_g: false,
+            count_prefix: None,
             key_picker: KeyPickerState::new(),
             key_tester: KeyTesterState::new(),
             status: None,
@@ -239,10 +241,24 @@ impl App {
                 if let Some(keymap) = &mut self.keymap {
                     keymap.jump_col_start(&self.positioned_keys);
                 }
+                self.count_prefix = None;
                 return;
             }
             // Not gg — fall through to handle the key normally
         }
+
+        // Accumulate count prefix digits
+        if let KeyCode::Char(c @ '1'..='9') = key.code {
+            let digit = c as u32 - '0' as u32;
+            self.count_prefix = Some(self.count_prefix.unwrap_or(0) * 10 + digit);
+            return;
+        }
+        if key.code == KeyCode::Char('0') && self.count_prefix.is_some() {
+            self.count_prefix = Some(self.count_prefix.unwrap() * 10);
+            return;
+        }
+
+        let count = self.count_prefix.take().unwrap_or(1) as usize;
 
         match key.code {
             KeyCode::Char('q') => self.should_quit = true,
@@ -251,22 +267,30 @@ impl App {
             }
             KeyCode::Up | KeyCode::Char('k') => {
                 if let Some(keymap) = &mut self.keymap {
-                    keymap.navigate(Direction::Up, &self.positioned_keys);
+                    for _ in 0..count {
+                        keymap.navigate(Direction::Up, &self.positioned_keys);
+                    }
                 }
             }
             KeyCode::Down | KeyCode::Char('j') => {
                 if let Some(keymap) = &mut self.keymap {
-                    keymap.navigate(Direction::Down, &self.positioned_keys);
+                    for _ in 0..count {
+                        keymap.navigate(Direction::Down, &self.positioned_keys);
+                    }
                 }
             }
             KeyCode::Left | KeyCode::Char('h') => {
                 if let Some(keymap) = &mut self.keymap {
-                    keymap.navigate(Direction::Left, &self.positioned_keys);
+                    for _ in 0..count {
+                        keymap.navigate(Direction::Left, &self.positioned_keys);
+                    }
                 }
             }
             KeyCode::Right | KeyCode::Char('l') => {
                 if let Some(keymap) = &mut self.keymap {
-                    keymap.navigate(Direction::Right, &self.positioned_keys);
+                    for _ in 0..count {
+                        keymap.navigate(Direction::Right, &self.positioned_keys);
+                    }
                 }
             }
             KeyCode::Char('0') => {
@@ -324,15 +348,40 @@ impl App {
                     self.key_picker.pending_g = false;
                     if key.code == KeyCode::Char('g') {
                         self.key_picker.move_top();
+                        self.key_picker.count_prefix = None;
                         return;
                     }
                     // Not gg — fall through to handle the key normally
                 }
 
+                // Accumulate count prefix digits
+                if let KeyCode::Char(c @ '1'..='9') = key.code {
+                    let digit = c as u32 - '0' as u32;
+                    self.key_picker.count_prefix = Some(
+                        self.key_picker.count_prefix.unwrap_or(0) * 10 + digit,
+                    );
+                    return;
+                }
+                if key.code == KeyCode::Char('0') && self.key_picker.count_prefix.is_some() {
+                    self.key_picker.count_prefix =
+                        Some(self.key_picker.count_prefix.unwrap() * 10);
+                    return;
+                }
+
+                let count = self.key_picker.count_prefix.take().unwrap_or(1) as usize;
+
                 match key.code {
                     KeyCode::Esc => self.key_picker.close(),
-                    KeyCode::Up | KeyCode::Char('k') => self.key_picker.move_up(),
-                    KeyCode::Down | KeyCode::Char('j') => self.key_picker.move_down(),
+                    KeyCode::Up | KeyCode::Char('k') => {
+                        for _ in 0..count {
+                            self.key_picker.move_up();
+                        }
+                    }
+                    KeyCode::Down | KeyCode::Char('j') => {
+                        for _ in 0..count {
+                            self.key_picker.move_down();
+                        }
+                    }
                     KeyCode::Left | KeyCode::Char('h') => self.key_picker.prev_category(),
                     KeyCode::Right | KeyCode::Char('l') => self.key_picker.next_category(),
                     KeyCode::Char('/') => self.key_picker.enter_insert(),

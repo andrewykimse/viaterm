@@ -17,6 +17,7 @@ pub struct KeyPickerState {
     pub active: bool,
     pub mode: PickerMode,
     pub pending_g: bool,
+    pub count_prefix: Option<u32>,
     pub category: KeycodeCategory,
     pub search_query: String,
     pub selected_index: usize,
@@ -29,6 +30,7 @@ impl KeyPickerState {
             active: false,
             mode: PickerMode::Normal,
             pending_g: false,
+            count_prefix: None,
             category: KeycodeCategory::Basic,
             search_query: String::new(),
             selected_index: 0,
@@ -42,6 +44,7 @@ impl KeyPickerState {
         self.active = true;
         self.mode = PickerMode::Normal;
         self.pending_g = false;
+        self.count_prefix = None;
         self.search_query.clear();
         self.selected_index = 0;
         self.category = KeycodeCategory::Basic;
