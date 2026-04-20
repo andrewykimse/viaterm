@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// VIA keyboard definition from usevia.app.
 ///
@@ -19,7 +19,7 @@ pub struct ViaDefinition {
     pub menus: Vec<serde_json::Value>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MatrixInfo {
     pub rows: u8,
     pub cols: u8,

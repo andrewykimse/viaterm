@@ -3,6 +3,13 @@ use std::collections::HashSet;
 use crate::definition::layout_parser::PositionedKey;
 use crate::definition::schema::MatrixInfo;
 
+pub struct UndoEntry {
+    pub layer: u8,
+    pub offset: usize,
+    pub old_keycode: u16,
+    pub new_keycode: u16,
+}
+
 /// Editable keymap state with dirty tracking for efficient writes.
 pub struct KeymapState {
     /// layers[layer_idx][matrix_offset] = keycode
@@ -16,6 +23,9 @@ pub struct KeymapState {
     pub selected_key: Option<usize>,
     /// Matrix dimensions
     pub matrix: MatrixInfo,
+    /// Undo/redo stacks
+    undo_stack: Vec<UndoEntry>,
+    redo_stack: Vec<UndoEntry>,
 }
 
 impl KeymapState {
@@ -26,6 +36,8 @@ impl KeymapState {
             active_layer: 0,
             selected_key: None,
             matrix,
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
         }
     }
 
@@ -48,11 +60,49 @@ impl KeymapState {
         if let Some(layer) = self.layers.get_mut(self.active_layer as usize) {
             if let Some(slot) = layer.get_mut(offset) {
                 if *slot != keycode {
+                    let old_keycode = *slot;
                     *slot = keycode;
                     self.dirty.insert((self.active_layer, offset));
+                    self.undo_stack.push(UndoEntry {
+                        layer: self.active_layer,
+                        offset,
+                        old_keycode,
+                        new_keycode: keycode,
+                    });
+                    self.redo_stack.clear();
                 }
             }
         }
+    }
+
+    /// Undo the last keycode change. Returns the (layer, offset) that changed, if any.
+    pub fn undo(&mut self) -> Option<(u8, usize)> {
+        let entry = self.undo_stack.pop()?;
+        if let Some(layer) = self.layers.get_mut(entry.layer as usize) {
+            if let Some(slot) = layer.get_mut(entry.offset) {
+                *slot = entry.old_keycode;
+                self.dirty.insert((entry.layer, entry.offset));
+                let loc = (entry.layer, entry.offset);
+                self.redo_stack.push(entry);
+                return Some(loc);
+            }
+        }
+        None
+    }
+
+    /// Redo the last undone change. Returns the (layer, offset) that changed, if any.
+    pub fn redo(&mut self) -> Option<(u8, usize)> {
+        let entry = self.redo_stack.pop()?;
+        if let Some(layer) = self.layers.get_mut(entry.layer as usize) {
+            if let Some(slot) = layer.get_mut(entry.offset) {
+                *slot = entry.new_keycode;
+                self.dirty.insert((entry.layer, entry.offset));
+                let loc = (entry.layer, entry.offset);
+                self.undo_stack.push(entry);
+                return Some(loc);
+            }
+        }
+        None
     }
 
     /// Get all dirty entries as (layer, row, col, keycode) for writing to device.
@@ -73,6 +123,24 @@ impl KeymapState {
 
     pub fn has_unsaved_changes(&self) -> bool {
         !self.dirty.is_empty()
+    }
+
+    /// Replace all layers from a backup, marking every changed key as dirty.
+    pub fn restore_layers(&mut self, new_layers: Vec<Vec<u16>>) {
+        for (layer_idx, new_layer) in new_layers.into_iter().enumerate() {
+            if let Some(old_layer) = self.layers.get_mut(layer_idx) {
+                for (offset, &new_code) in new_layer.iter().enumerate() {
+                    if let Some(old_code) = old_layer.get_mut(offset) {
+                        if *old_code != new_code {
+                            *old_code = new_code;
+                            self.dirty.insert((layer_idx as u8, offset));
+                        }
+                    }
+                }
+            }
+        }
+        self.undo_stack.clear();
+        self.redo_stack.clear();
     }
 
     /// Navigate selection to the next layer.

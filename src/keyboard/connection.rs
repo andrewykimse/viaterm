@@ -82,4 +82,25 @@ impl KeyboardConnection {
             )))?;
         Ok(())
     }
+
+    /// Read the macro byte buffer from the device.
+    pub fn read_macro_bytes(&self) -> Result<Vec<u8>> {
+        self.api
+            .get_macro_bytes()
+            .map_err(via_err("Failed to read macro bytes"))
+    }
+
+    /// Write the macro byte buffer to the device.
+    pub fn write_macro_bytes(&self, data: Vec<u8>) -> Result<()> {
+        self.api
+            .set_macro_bytes(data)
+            .map_err(via_err("Failed to write macro bytes"))
+    }
+
+    /// Get the number of macros the device supports.
+    pub fn get_macro_count(&self) -> Result<u8> {
+        self.api
+            .get_macro_count()
+            .map_err(via_err("Failed to get macro count"))
+    }
 }
