@@ -16,13 +16,13 @@ A terminal-based [VIA](https://usevia.app) keyboard configurator built with Rust
 ### Cargo
 
 ```sh
-cargo install --git https://github.com/andrewkim/viaterm
+cargo install --git https://github.com/andrewykimse/viaterm
 ```
 
 Or build from source:
 
 ```sh
-git clone https://github.com/andrewkim/viaterm
+git clone https://github.com/andrewykimse/viaterm
 cd viaterm
 cargo install --path .
 ```
@@ -32,14 +32,14 @@ cargo install --path .
 Run without installing:
 
 ```sh
-nix run github:andrewkim/viaterm
+nix run github:andrewykimse/viaterm
 ```
 
 Or add to your flake inputs:
 
 ```nix
 {
-  inputs.viaterm.url = "github:andrewkim/viaterm";
+  inputs.viaterm.url = "github:andrewykimse/viaterm";
 
   outputs = { self, nixpkgs, viaterm, ... }: {
     # Add to your packages
@@ -51,7 +51,7 @@ Or add to your flake inputs:
 Build with Nix directly:
 
 ```sh
-nix build github:andrewkim/viaterm
+nix build github:andrewykimse/viaterm
 ./result/bin/via
 ```
 
