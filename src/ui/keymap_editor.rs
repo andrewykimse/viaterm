@@ -81,7 +81,7 @@ impl Widget for KeymapEditorWidget<'_> {
 
         // Help bar
         let help = Paragraph::new(Line::from(vec![
-            Span::styled("←↑↓→", Style::default().fg(Color::Cyan)),
+            Span::styled("hjkl/←↑↓→", Style::default().fg(Color::Cyan)),
             Span::raw(" Move  "),
             Span::styled("Enter", Style::default().fg(Color::Cyan)),
             Span::raw(" Assign  "),

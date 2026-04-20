@@ -52,7 +52,7 @@ Build with Nix directly:
 
 ```sh
 nix build github:andrewkim/viaterm
-./result/bin/viaterm
+./result/bin/via
 ```
 
 ### Linux: USB permissions
@@ -72,17 +72,17 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 ## Usage
 
 ```sh
-viaterm
+via
 ```
 
-That's it. Plug in your VIA-compatible keyboard, run `viaterm`, and it will scan for devices automatically. Select your keyboard and the definition is fetched from usevia.app.
+That's it. Plug in your VIA-compatible keyboard, run `via`, and it will scan for devices automatically. Select your keyboard and the definition is fetched from usevia.app.
 
 To use a local definition file instead:
 
 ```sh
-viaterm --definition path/to/keyboard.json
+via --definition path/to/keyboard.json
 # or
-viaterm -d path/to/keyboard.json
+via -d path/to/keyboard.json
 ```
 
 ## Keybindings

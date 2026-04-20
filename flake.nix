@@ -31,7 +31,7 @@
           meta = with pkgs.lib; {
             description = "Terminal-based VIA keyboard configurator";
             license = licenses.gpl3Only;
-            mainProgram = "viaterm";
+            mainProgram = "via";
           };
         };
 

@@ -210,22 +210,22 @@ impl App {
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.should_quit = true;
             }
-            KeyCode::Up => {
+            KeyCode::Up | KeyCode::Char('k') => {
                 if let Some(keymap) = &mut self.keymap {
                     keymap.navigate(Direction::Up, &self.positioned_keys);
                 }
             }
-            KeyCode::Down => {
+            KeyCode::Down | KeyCode::Char('j') => {
                 if let Some(keymap) = &mut self.keymap {
                     keymap.navigate(Direction::Down, &self.positioned_keys);
                 }
             }
-            KeyCode::Left => {
+            KeyCode::Left | KeyCode::Char('h') => {
                 if let Some(keymap) = &mut self.keymap {
                     keymap.navigate(Direction::Left, &self.positioned_keys);
                 }
             }
-            KeyCode::Right => {
+            KeyCode::Right | KeyCode::Char('l') => {
                 if let Some(keymap) = &mut self.keymap {
                     keymap.navigate(Direction::Right, &self.positioned_keys);
                 }

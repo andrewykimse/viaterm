@@ -5,6 +5,10 @@ edition = "2024"
 license = "GPL-3.0-only"
 description = "Terminal-based VIA keyboard configurator"
 
+[[bin]]
+name = "via"
+path = "src/main.rs"
+
 [dependencies]
 # VIA protocol + USB HID
 qmk-via-api = "0.7"
