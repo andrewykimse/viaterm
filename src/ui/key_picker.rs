@@ -100,8 +100,8 @@ pub struct KeyPickerWidget<'a> {
 impl Widget for KeyPickerWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         // Center popup in area
-        let popup_w = area.width.min(50);
-        let popup_h = area.height.min(25);
+        let popup_w = area.width.min(70).max(area.width * 3 / 4);
+        let popup_h = area.height.min(30).max(area.height * 3 / 4);
         let popup_x = area.x + (area.width.saturating_sub(popup_w)) / 2;
         let popup_y = area.y + (area.height.saturating_sub(popup_h)) / 2;
         let popup_area = Rect::new(popup_x, popup_y, popup_w, popup_h);
