@@ -25,8 +25,7 @@
           buildInputs = with pkgs; [
             hidapi
           ] ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
-            pkgs.darwin.apple_sdk.frameworks.IOKit
-            pkgs.darwin.apple_sdk.frameworks.CoreFoundation
+            pkgs.apple-sdk
           ];
 
           meta = with pkgs.lib; {
