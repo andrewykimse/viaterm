@@ -9,6 +9,7 @@ pub enum KeycodeCategory {
     NumpadKeys,
     Macros,
     LayerFunctions,
+    ModTap,
     Special,
 }
 
@@ -22,6 +23,7 @@ impl KeycodeCategory {
         Self::NumpadKeys,
         Self::Macros,
         Self::LayerFunctions,
+        Self::ModTap,
         Self::Special,
     ];
 
@@ -35,6 +37,7 @@ impl KeycodeCategory {
             Self::NumpadKeys => "Numpad",
             Self::Macros => "Macros",
             Self::LayerFunctions => "Layers",
+            Self::ModTap => "Mod-Tap",
             Self::Special => "Special",
         }
     }
@@ -102,6 +105,33 @@ pub fn keycode_label(code: u16) -> String {
 
         _ => format!("{:#06X}", code),
     }
+}
+
+/// Modifier options for the MT picker (first step).
+pub static MT_MODIFIERS: &[KeycodeEntry] = &[
+    KeycodeEntry { code: 0x01, name: "Ctrl", label: "CTL", category: ModTap },
+    KeycodeEntry { code: 0x02, name: "Shift", label: "SFT", category: ModTap },
+    KeycodeEntry { code: 0x04, name: "Alt", label: "ALT", category: ModTap },
+    KeycodeEntry { code: 0x08, name: "GUI", label: "GUI", category: ModTap },
+    KeycodeEntry { code: 0x03, name: "Ctrl+Shift", label: "CS", category: ModTap },
+    KeycodeEntry { code: 0x05, name: "Ctrl+Alt", label: "CA", category: ModTap },
+    KeycodeEntry { code: 0x09, name: "Ctrl+GUI", label: "CG", category: ModTap },
+    KeycodeEntry { code: 0x06, name: "Shift+Alt", label: "SA", category: ModTap },
+    KeycodeEntry { code: 0x0A, name: "Shift+GUI", label: "SG", category: ModTap },
+    KeycodeEntry { code: 0x0C, name: "Alt+GUI", label: "AG", category: ModTap },
+];
+
+/// Get base keycodes available for MT tap behavior.
+pub fn mt_base_keycodes() -> Vec<&'static KeycodeEntry> {
+    KEYCODES
+        .iter()
+        .filter(|e| e.code <= 0xFF && e.category != KeycodeCategory::Special)
+        .collect()
+}
+
+/// Encode an MT keycode from modifier bits and base keycode.
+pub fn encode_mt(mod_bits: u16, base_kc: u16) -> u16 {
+    0x6000 | (mod_bits << 8) | (base_kc & 0xFF)
 }
 
 fn mod_bits_to_string(mods: u16) -> &'static str {

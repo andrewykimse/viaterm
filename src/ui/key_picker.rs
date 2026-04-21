@@ -4,7 +4,10 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Tabs, Widget};
 
-use crate::keyboard::keycodes::{KeycodeCategory, KeycodeEntry, filtered_keycodes, search_keycodes};
+use crate::keyboard::keycodes::{
+    KeycodeCategory, KeycodeEntry, MT_MODIFIERS, encode_mt, filtered_keycodes, mt_base_keycodes,
+    search_keycodes,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PickerMode {
@@ -22,6 +25,8 @@ pub struct KeyPickerState {
     pub search_query: String,
     pub selected_index: usize,
     cached_results: Vec<&'static KeycodeEntry>,
+    /// For Mod-Tap: selected modifier bits (step 1 done, picking base key).
+    pub mt_modifier: Option<u16>,
 }
 
 impl KeyPickerState {
@@ -35,6 +40,7 @@ impl KeyPickerState {
             search_query: String::new(),
             selected_index: 0,
             cached_results: Vec::new(),
+            mt_modifier: None,
         };
         state.refresh_results();
         state
@@ -48,6 +54,7 @@ impl KeyPickerState {
         self.search_query.clear();
         self.selected_index = 0;
         self.category = KeycodeCategory::Basic;
+        self.mt_modifier = None;
         self.refresh_results();
     }
 
@@ -68,6 +75,7 @@ impl KeyPickerState {
         let idx = cats.iter().position(|c| *c == self.category).unwrap_or(0);
         self.category = cats[(idx + 1) % cats.len()];
         self.selected_index = 0;
+        self.mt_modifier = None;
         self.refresh_results();
     }
 
@@ -76,6 +84,7 @@ impl KeyPickerState {
         let idx = cats.iter().position(|c| *c == self.category).unwrap_or(0);
         self.category = cats[idx.checked_sub(1).unwrap_or(cats.len() - 1)];
         self.selected_index = 0;
+        self.mt_modifier = None;
         self.refresh_results();
     }
 
@@ -113,11 +122,44 @@ impl KeyPickerState {
         }
     }
 
-    pub fn selected_keycode(&self) -> Option<u16> {
-        self.cached_results.get(self.selected_index).map(|e| e.code)
+    /// Try to confirm the current selection. Returns Some(keycode) if a final
+    /// keycode is ready, or None if we advanced to the next MT step.
+    pub fn confirm_selection(&mut self) -> Option<u16> {
+        let entry = self.cached_results.get(self.selected_index)?;
+        if self.category == KeycodeCategory::ModTap && self.mt_modifier.is_none() {
+            // Step 1: user picked a modifier — advance to base key selection.
+            self.mt_modifier = Some(entry.code);
+            self.selected_index = 0;
+            self.refresh_results();
+            return None;
+        }
+        if let Some(mod_bits) = self.mt_modifier {
+            // Step 2: user picked a base key — encode and return.
+            return Some(encode_mt(mod_bits, entry.code));
+        }
+        Some(entry.code)
+    }
+
+    /// Go back from MT base-key selection to modifier selection.
+    pub fn mt_back(&mut self) {
+        if self.mt_modifier.is_some() {
+            self.mt_modifier = None;
+            self.selected_index = 0;
+            self.refresh_results();
+        }
     }
 
     fn refresh_results(&mut self) {
+        if self.category == KeycodeCategory::ModTap {
+            self.cached_results = if self.mt_modifier.is_some() {
+                // Step 2: show base keycodes
+                mt_base_keycodes()
+            } else {
+                // Step 1: show modifier options
+                MT_MODIFIERS.iter().collect()
+            };
+            return;
+        }
         self.cached_results = if self.search_query.is_empty() {
             filtered_keycodes(self.category, None)
         } else {
@@ -142,8 +184,22 @@ impl Widget for KeyPickerWidget<'_> {
         // Clear the popup area
         Clear.render(popup_area, buf);
 
+        let title = if self.state.category == KeycodeCategory::ModTap {
+            if let Some(mod_bits) = self.state.mt_modifier {
+                let mod_name = crate::keyboard::keycodes::MT_MODIFIERS
+                    .iter()
+                    .find(|e| e.code == mod_bits)
+                    .map(|e| e.label)
+                    .unwrap_or("MOD");
+                format!(" MT({mod_name}) — Pick Tap Key ")
+            } else {
+                " Mod-Tap — Pick Modifier ".to_string()
+            }
+        } else {
+            " Assign Keycode ".to_string()
+        };
         let block = Block::default()
-            .title(" Assign Keycode ")
+            .title(title)
             .borders(Borders::ALL)
             .border_style(Style::default().fg(Color::Cyan));
         let inner = block.inner(popup_area);

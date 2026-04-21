@@ -566,7 +566,13 @@ impl App {
                 let count = self.key_picker.count_prefix.take().unwrap_or(1) as usize;
 
                 match key.code {
-                    KeyCode::Esc => self.key_picker.close(),
+                    KeyCode::Esc => {
+                        if self.key_picker.mt_modifier.is_some() {
+                            self.key_picker.mt_back();
+                        } else {
+                            self.key_picker.close();
+                        }
+                    }
                     KeyCode::Up | KeyCode::Char('k') => {
                         for _ in 0..count {
                             self.key_picker.move_up();
@@ -583,7 +589,7 @@ impl App {
                     KeyCode::Char('G') => self.key_picker.move_bottom(),
                     KeyCode::Char('g') => self.key_picker.pending_g = true,
                     KeyCode::Enter => {
-                        if let Some(keycode) = self.key_picker.selected_keycode() {
+                        if let Some(keycode) = self.key_picker.confirm_selection() {
                             if let Some(keymap) = &mut self.keymap {
                                 if let Some(key_idx) = keymap.selected_key {
                                     let key = &self.positioned_keys[key_idx];
@@ -604,7 +610,7 @@ impl App {
                 KeyCode::Right => self.key_picker.next_category(),
                 KeyCode::Backspace => self.key_picker.backspace(),
                 KeyCode::Enter => {
-                    if let Some(keycode) = self.key_picker.selected_keycode() {
+                    if let Some(keycode) = self.key_picker.confirm_selection() {
                         if let Some(keymap) = &mut self.keymap {
                             if let Some(key_idx) = keymap.selected_key {
                                 let key = &self.positioned_keys[key_idx];
