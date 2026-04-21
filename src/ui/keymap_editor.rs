@@ -4,6 +4,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Tabs, Widget};
 
+use crate::app::KeymapSearch;
 use crate::definition::layout_parser::PositionedKey;
 use crate::keyboard::keymap::KeymapState;
 use crate::ui::layout::KeyboardLayoutWidget;
@@ -12,6 +13,7 @@ pub struct KeymapEditorWidget<'a> {
     pub keymap: &'a KeymapState,
     pub keys: &'a [PositionedKey],
     pub keyboard_name: &'a str,
+    pub search: &'a KeymapSearch,
 }
 
 impl Widget for KeymapEditorWidget<'_> {
@@ -20,7 +22,7 @@ impl Widget for KeymapEditorWidget<'_> {
             Constraint::Length(3), // Title + connection info
             Constraint::Length(2), // Layer tabs
             Constraint::Min(10),  // Keyboard layout
-            Constraint::Length(3), // Help bar
+            Constraint::Length(3), // Help bar / search bar
         ])
         .split(area);
 
@@ -76,43 +78,67 @@ impl Widget for KeymapEditorWidget<'_> {
             keycodes,
             selected_key: self.keymap.selected_key,
             cols: self.keymap.matrix.cols,
+            search_matches: &self.search.matches,
         };
         layout_widget.render(chunks[2], buf);
 
-        // Help bar
-        let help = Paragraph::new(Line::from(vec![
-            Span::styled("hjkl/←↑↓→", Style::default().fg(Color::Cyan)),
-            Span::raw(" Move  "),
-            Span::styled("0/$", Style::default().fg(Color::Cyan)),
-            Span::raw(" Row Start/End  "),
-            Span::styled("gg/G", Style::default().fg(Color::Cyan)),
-            Span::raw(" Col Top/Bottom  "),
-            Span::styled("Enter", Style::default().fg(Color::Cyan)),
-            Span::raw(" Assign  "),
-            Span::styled("y/p", Style::default().fg(Color::Cyan)),
-            Span::raw(" Copy/Paste  "),
-            Span::styled("u/C-r", Style::default().fg(Color::Cyan)),
-            Span::raw(" Undo/Redo  "),
-            Span::styled("Tab/S-Tab", Style::default().fg(Color::Cyan)),
-            Span::raw(" Layer  "),
-            Span::styled("m", Style::default().fg(Color::Cyan)),
-            Span::raw(" Macros  "),
-            Span::styled("L", Style::default().fg(Color::Cyan)),
-            Span::raw(" Lighting  "),
-            Span::styled("b/r", Style::default().fg(Color::Cyan)),
-            Span::raw(" Backup/Restore  "),
-            Span::styled("w", Style::default().fg(Color::Cyan)),
-            Span::raw(" Save  "),
-            Span::styled("d", Style::default().fg(Color::Cyan)),
-            Span::raw(" Disconnect  "),
-            Span::styled("q", Style::default().fg(Color::Cyan)),
-            Span::raw(" Quit"),
-        ]))
-        .block(
-            Block::default()
-                .borders(Borders::TOP)
-                .border_style(Style::default().fg(Color::DarkGray)),
-        );
-        help.render(chunks[3], buf);
+        // Bottom bar: search input when active, help bar otherwise
+        if self.search.active {
+            let match_info = if self.search.query.is_empty() {
+                String::new()
+            } else if self.search.matches.is_empty() {
+                " (no matches)".to_string()
+            } else {
+                format!(
+                    " ({}/{})",
+                    self.search.current + 1,
+                    self.search.matches.len()
+                )
+            };
+
+            let search_bar = Paragraph::new(Line::from(vec![
+                Span::styled("/", Style::default().fg(Color::Yellow)),
+                Span::raw(&self.search.query),
+                Span::styled("_", Style::default().fg(Color::Yellow)),
+                Span::styled(match_info, Style::default().fg(Color::DarkGray)),
+            ]))
+            .block(
+                Block::default()
+                    .borders(Borders::TOP)
+                    .border_style(Style::default().fg(Color::Yellow)),
+            );
+            search_bar.render(chunks[3], buf);
+        } else {
+            let help = Paragraph::new(Line::from(vec![
+                Span::styled("hjkl/←↑↓→", Style::default().fg(Color::Cyan)),
+                Span::raw(" Move  "),
+                Span::styled("/", Style::default().fg(Color::Cyan)),
+                Span::raw(" Search  "),
+                Span::styled("n/N", Style::default().fg(Color::Cyan)),
+                Span::raw(" Next/Prev  "),
+                Span::styled("Enter", Style::default().fg(Color::Cyan)),
+                Span::raw(" Assign  "),
+                Span::styled("y/p", Style::default().fg(Color::Cyan)),
+                Span::raw(" Copy/Paste  "),
+                Span::styled("u/C-r", Style::default().fg(Color::Cyan)),
+                Span::raw(" Undo/Redo  "),
+                Span::styled("Tab", Style::default().fg(Color::Cyan)),
+                Span::raw(" Layer  "),
+                Span::styled("m", Style::default().fg(Color::Cyan)),
+                Span::raw(" Macros  "),
+                Span::styled("L", Style::default().fg(Color::Cyan)),
+                Span::raw(" Lighting  "),
+                Span::styled("w", Style::default().fg(Color::Cyan)),
+                Span::raw(" Save  "),
+                Span::styled("q", Style::default().fg(Color::Cyan)),
+                Span::raw(" Quit"),
+            ]))
+            .block(
+                Block::default()
+                    .borders(Borders::TOP)
+                    .border_style(Style::default().fg(Color::DarkGray)),
+            );
+            help.render(chunks[3], buf);
+        }
     }
 }

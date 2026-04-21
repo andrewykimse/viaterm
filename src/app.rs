@@ -33,6 +33,88 @@ pub enum Screen {
     LightingEditor,
 }
 
+/// Search-in-keymap state: find keys by their keycode label.
+pub struct KeymapSearch {
+    pub active: bool,
+    pub query: String,
+    /// Indices into positioned_keys that match the query.
+    pub matches: Vec<usize>,
+    /// Which match is currently focused (index into `matches`).
+    pub current: usize,
+}
+
+impl KeymapSearch {
+    pub fn new() -> Self {
+        Self {
+            active: false,
+            query: String::new(),
+            matches: Vec::new(),
+            current: 0,
+        }
+    }
+
+    pub fn open(&mut self) {
+        self.active = true;
+        self.query.clear();
+        self.matches.clear();
+        self.current = 0;
+    }
+
+    pub fn close(&mut self) {
+        self.active = false;
+    }
+
+    pub fn type_char(&mut self, c: char) {
+        self.query.push(c);
+    }
+
+    pub fn backspace(&mut self) {
+        self.query.pop();
+    }
+
+    /// Recompute matches from positioned keys + keymap.
+    pub fn update_matches(&mut self, keys: &[PositionedKey], keymap: &KeymapState) {
+        if self.query.is_empty() {
+            self.matches.clear();
+            self.current = 0;
+            return;
+        }
+        let q = self.query.to_lowercase();
+        self.matches = keys
+            .iter()
+            .filter(|k| {
+                let kc = keymap.get_keycode(k);
+                let label = crate::keyboard::keycodes::keycode_label(kc);
+                label.to_lowercase().contains(&q)
+            })
+            .map(|k| k.index)
+            .collect();
+        // Keep current in bounds
+        if self.matches.is_empty() {
+            self.current = 0;
+        } else if self.current >= self.matches.len() {
+            self.current = 0;
+        }
+    }
+
+    pub fn next_match(&mut self) {
+        if !self.matches.is_empty() {
+            self.current = (self.current + 1) % self.matches.len();
+        }
+    }
+
+    pub fn prev_match(&mut self) {
+        if !self.matches.is_empty() {
+            self.current = (self.current + self.matches.len() - 1) % self.matches.len();
+        }
+    }
+
+    /// The key index of the currently focused match, if any.
+    pub fn focused_key(&self) -> Option<usize> {
+        self.matches.get(self.current).copied()
+    }
+}
+
 pub struct App {
     pub screen: Screen,
     pub should_quit: bool,
@@ -67,6 +149,9 @@ pub struct App {
     // Key tester
     pub key_tester: KeyTesterState,
 
+    // Keycode search
+    pub search: KeymapSearch,
+
     // Clipboard
     pub clipboard_keycode: Option<u16>,
     pub clipboard_macro: Option<String>,
@@ -97,6 +182,7 @@ impl App {
             pending_d: false,
             lighting_state: None,
             key_tester: KeyTesterState::new(),
+            search: KeymapSearch::new(),
             clipboard_keycode: None,
             clipboard_macro: None,
             status: None,
@@ -429,10 +515,98 @@ impl App {
         }
     }
 
+    fn handle_search_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Esc => {
+                self.search.close();
+            }
+            KeyCode::Enter => {
+                // Confirm search: jump to first match and close input
+                if let Some(keymap) = &mut self.keymap {
+                    if let Some(idx) = self.search.focused_key() {
+                        keymap.selected_key = Some(idx);
+                    }
+                }
+                if self.search.matches.is_empty() && !self.search.query.is_empty() {
+                    self.status = Some(StatusMessage::info("No matches"));
+                } else if !self.search.matches.is_empty() {
+                    self.status = Some(StatusMessage::info(format!(
+                        "{} match(es)",
+                        self.search.matches.len()
+                    )));
+                }
+                self.search.active = false;
+            }
+            KeyCode::Backspace => {
+                self.search.backspace();
+                if let Some(keymap) = &self.keymap {
+                    self.search.update_matches(&self.positioned_keys, keymap);
+                }
+                // Live-jump to first match while typing
+                if let Some(keymap) = &mut self.keymap {
+                    if let Some(idx) = self.search.focused_key() {
+                        keymap.selected_key = Some(idx);
+                    }
+                }
+            }
+            KeyCode::Char(c) => {
+                self.search.type_char(c);
+                if let Some(keymap) = &self.keymap {
+                    self.search.update_matches(&self.positioned_keys, keymap);
+                }
+                // Live-jump to first match while typing
+                if let Some(keymap) = &mut self.keymap {
+                    if let Some(idx) = self.search.focused_key() {
+                        keymap.selected_key = Some(idx);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn jump_to_next_match(&mut self) {
+        if self.search.matches.is_empty() {
+            self.status = Some(StatusMessage::info("No search results (press / to search)"));
+            return;
+        }
+        self.search.next_match();
+        if let Some(keymap) = &mut self.keymap {
+            if let Some(idx) = self.search.focused_key() {
+                keymap.selected_key = Some(idx);
+                self.status = Some(StatusMessage::info(format!(
+                    "Match {}/{}",
+                    self.search.current + 1,
+                    self.search.matches.len()
+                )));
+            }
+        }
+    }
+
+    fn jump_to_prev_match(&mut self) {
+        if self.search.matches.is_empty() {
+            self.status = Some(StatusMessage::info("No search results (press / to search)"));
+            return;
+        }
+        self.search.prev_match();
+        if let Some(keymap) = &mut self.keymap {
+            if let Some(idx) = self.search.focused_key() {
+                keymap.selected_key = Some(idx);
+                self.status = Some(StatusMessage::info(format!(
+                    "Match {}/{}",
+                    self.search.current + 1,
+                    self.search.matches.len()
+                )));
+            }
+        }
+    }
+
     #[allow(clippy::needless_pass_by_value)]
     pub fn handle_event(&mut self, event: Event) {
         if let Event::Key(key) = event {
-            if self.backup_picker.active {
+            if self.search.active {
+                self.handle_search_key(key);
+            } else if self.backup_picker.active {
                 self.handle_backup_picker_key(key);
             } else if self.key_picker.active {
                 self.handle_picker_key(key);
@@ -619,6 +793,9 @@ impl App {
                     self.status = Some(StatusMessage::info("Nothing to paste"));
                 }
             }
+            KeyCode::Char('/') => self.search.open(),
+            KeyCode::Char('n') => self.jump_to_next_match(),
+            KeyCode::Char('N') => self.jump_to_prev_match(),
             KeyCode::Char('m') => self.open_macro_editor(),
             KeyCode::Char('L') => self.open_lighting_editor(),
             KeyCode::Char('b') => self.create_backup(),
@@ -964,6 +1141,7 @@ impl App {
                         keymap,
                         keys: &self.positioned_keys,
                         keyboard_name: name,
+                        search: &self.search,
                     };
                     frame.render_widget(widget, area);
 
@@ -999,5 +1177,135 @@ impl App {
             };
             frame.render_widget(widget, status_area);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::definition::layout_parser::PositionedKey;
+    use crate::definition::schema::MatrixInfo;
+    use crate::keyboard::keymap::KeymapState;
+
+    fn keys_and_keymap() -> (Vec<PositionedKey>, KeymapState) {
+        // 3 keys: A (0x04), ESC (0x29), ENT (0x28)
+        let keys = vec![
+            PositionedKey { x: 0.0, y: 0.0, w: 1.0, h: 1.0, row: 0, col: 0, index: 0 },
+            PositionedKey { x: 1.0, y: 0.0, w: 1.0, h: 1.0, row: 0, col: 1, index: 1 },
+            PositionedKey { x: 2.0, y: 0.0, w: 1.0, h: 1.0, row: 0, col: 2, index: 2 },
+        ];
+        let layer = vec![0x04, 0x29, 0x28]; // A, ESC, ENT
+        let keymap = KeymapState::new(vec![layer], MatrixInfo { rows: 1, cols: 3 });
+        (keys, keymap)
+    }
+
+    #[test]
+    fn search_open_close() {
+        let mut s = KeymapSearch::new();
+        assert!(!s.active);
+        s.open();
+        assert!(s.active);
+        assert!(s.query.is_empty());
+        s.close();
+        assert!(!s.active);
+    }
+
+    #[test]
+    fn search_type_and_backspace() {
+        let mut s = KeymapSearch::new();
+        s.type_char('e');
+        s.type_char('s');
+        assert_eq!(s.query, "es");
+        s.backspace();
+        assert_eq!(s.query, "e");
+        s.backspace();
+        assert!(s.query.is_empty());
+        s.backspace(); // no-op on empty
+        assert!(s.query.is_empty());
+    }
+
+    #[test]
+    fn search_finds_matches() {
+        let (keys, keymap) = keys_and_keymap();
+        let mut s = KeymapSearch::new();
+        s.type_char('E');
+        s.update_matches(&keys, &keymap);
+        // "E" matches ESC (index 1) and ENT (index 2)
+        assert_eq!(s.matches.len(), 2);
+        assert!(s.matches.contains(&1));
+        assert!(s.matches.contains(&2));
+    }
+
+    #[test]
+    fn search_case_insensitive() {
+        let (keys, keymap) = keys_and_keymap();
+        let mut s = KeymapSearch::new();
+        s.type_char('e');
+        s.type_char('s');
+        s.type_char('c');
+        s.update_matches(&keys, &keymap);
+        assert_eq!(s.matches, vec![1]); // ESC
+    }
+
+    #[test]
+    fn search_no_matches() {
+        let (keys, keymap) = keys_and_keymap();
+        let mut s = KeymapSearch::new();
+        s.type_char('Z');
+        s.update_matches(&keys, &keymap);
+        assert!(s.matches.is_empty());
+        assert!(s.focused_key().is_none());
+    }
+
+    #[test]
+    fn search_empty_query_clears() {
+        let (keys, keymap) = keys_and_keymap();
+        let mut s = KeymapSearch::new();
+        s.type_char('A');
+        s.update_matches(&keys, &keymap);
+        assert!(!s.matches.is_empty());
+        s.backspace();
+        s.update_matches(&keys, &keymap);
+        assert!(s.matches.is_empty());
+    }
+
+    #[test]
+    fn search_next_prev_wrap() {
+        let mut s = KeymapSearch::new();
+        s.matches = vec![1, 3, 5];
+        s.current = 0;
+
+        s.next_match();
+        assert_eq!(s.current, 1);
+        s.next_match();
+        assert_eq!(s.current, 2);
+        s.next_match();
+        assert_eq!(s.current, 0); // wraps
+
+        s.prev_match();
+        assert_eq!(s.current, 2); // wraps back
+        s.prev_match();
+        assert_eq!(s.current, 1);
+    }
+
+    #[test]
+    fn search_focused_key() {
+        let mut s = KeymapSearch::new();
+        assert!(s.focused_key().is_none());
+        s.matches = vec![5, 10];
+        s.current = 0;
+        assert_eq!(s.focused_key(), Some(5));
+        s.current = 1;
+        assert_eq!(s.focused_key(), Some(10));
+    }
+
+    #[test]
+    fn search_current_resets_when_out_of_bounds() {
+        let (keys, keymap) = keys_and_keymap();
+        let mut s = KeymapSearch::new();
+        s.current = 99; // out of bounds
+        s.type_char('A');
+        s.update_matches(&keys, &keymap);
+        assert_eq!(s.current, 0); // reset
     }
 }

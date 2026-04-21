@@ -21,6 +21,8 @@ pub struct KeyboardLayoutWidget<'a> {
     pub keycodes: &'a [u16],
     pub selected_key: Option<usize>,
     pub cols: u8,
+    /// Key indices that match the current search query (highlighted).
+    pub search_matches: &'a [usize],
 }
 
 impl Widget for KeyboardLayoutWidget<'_> {
@@ -78,6 +80,8 @@ impl Widget for KeyboardLayoutWidget<'_> {
                 continue;
             }
 
+            let is_match = self.search_matches.contains(&key.index);
+
             let (style, border_style, bg_color) = if is_selected {
                 (
                     Style::default()
@@ -86,6 +90,15 @@ impl Widget for KeyboardLayoutWidget<'_> {
                         .add_modifier(Modifier::BOLD),
                     Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
                     Some(Color::Cyan),
+                )
+            } else if is_match {
+                (
+                    Style::default()
+                        .fg(Color::Black)
+                        .bg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                    Style::default().fg(Color::Yellow),
+                    Some(Color::Yellow),
                 )
             } else {
                 (
