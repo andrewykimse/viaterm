@@ -222,12 +222,22 @@ pub fn encode_macros(macros: &[String]) -> Vec<u8> {
     buf
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MacroFocus {
+    /// Navigating the macro list (left pane)
+    List,
+    /// Viewing a macro in normal mode (right pane, vim motions)
+    Editor,
+    /// Typing into a macro (right pane, insert mode)
+    Insert,
+}
+
 /// Macro editor state.
 pub struct MacroState {
     pub macros: Vec<String>,
     pub macro_count: usize,
     pub selected_macro: usize,
-    pub editing: bool,
+    pub focus: MacroFocus,
     pub recording: bool,
     pub cursor_pos: usize,
     pub dirty: bool,
@@ -239,7 +249,7 @@ impl MacroState {
             macros,
             macro_count,
             selected_macro: 0,
-            editing: false,
+            focus: MacroFocus::List,
             recording: false,
             cursor_pos: 0,
             dirty: false,
@@ -258,13 +268,22 @@ impl MacroState {
         }
     }
 
-    pub fn start_editing(&mut self) {
-        self.editing = true;
+    pub fn focus_editor(&mut self) {
+        self.focus = MacroFocus::Editor;
         self.cursor_pos = self.current_macro().len();
     }
 
-    pub fn stop_editing(&mut self) {
-        self.editing = false;
+    pub fn focus_list(&mut self) {
+        self.focus = MacroFocus::List;
+    }
+
+    pub fn enter_insert(&mut self) {
+        self.focus = MacroFocus::Insert;
+        self.cursor_pos = self.current_macro().len();
+    }
+
+    pub fn exit_insert(&mut self) {
+        self.focus = MacroFocus::Editor;
     }
 
     pub fn current_macro(&self) -> &str {
@@ -325,6 +344,7 @@ impl MacroState {
     pub fn start_recording(&mut self) {
         self.clear_current();
         self.recording = true;
+        self.focus = MacroFocus::Editor;
     }
 
     pub fn stop_recording(&mut self) {

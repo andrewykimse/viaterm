@@ -621,10 +621,13 @@ impl App {
     }
 
     fn handle_macro_editor_key(&mut self, key: KeyEvent) {
+        use crate::keyboard::macros::MacroFocus;
+
         let Some(state) = &mut self.macro_state else {
             return;
         };
 
+        // Recording mode takes priority — captures all keys except Esc
         if state.recording {
             if key.code == KeyCode::Esc {
                 state.stop_recording();
@@ -634,40 +637,64 @@ impl App {
             return;
         }
 
-        if state.editing {
-            match key.code {
-                KeyCode::Esc => state.stop_editing(),
-                KeyCode::Backspace => state.backspace(),
-                KeyCode::Left => state.cursor_left(),
-                KeyCode::Right => state.cursor_right(),
-                KeyCode::Char(c) => state.type_char(c),
-                _ => {}
-            }
-        } else {
-            // Handle pending d for dd sequence
-            if self.pending_d {
-                self.pending_d = false;
-                if key.code == KeyCode::Char('d') {
-                    if let Some(state) = &mut self.macro_state {
-                        state.clear_current();
+        match state.focus {
+            MacroFocus::List => {
+                // Handle pending d for dd sequence
+                if self.pending_d {
+                    self.pending_d = false;
+                    if key.code == KeyCode::Char('d') {
+                        if let Some(state) = &mut self.macro_state {
+                            state.clear_current();
+                        }
+                        return;
                     }
-                    return;
+                }
+
+                match key.code {
+                    KeyCode::Esc => {
+                        self.macro_state = None;
+                        self.screen = Screen::KeymapEditor;
+                    }
+                    KeyCode::Up | KeyCode::Char('k') => state.select_up(),
+                    KeyCode::Down | KeyCode::Char('j') => state.select_down(),
+                    KeyCode::Enter | KeyCode::Char('l') | KeyCode::Right => state.focus_editor(),
+                    KeyCode::Char('R') => state.start_recording(),
+                    KeyCode::Char('d') => self.pending_d = true,
+                    KeyCode::Char('w') => self.save_macros(),
+                    KeyCode::Char('q') => self.should_quit = true,
+                    _ => {}
                 }
             }
-
-            match key.code {
-                KeyCode::Esc => {
-                    self.macro_state = None;
-                    self.screen = Screen::KeymapEditor;
+            MacroFocus::Editor => {
+                match key.code {
+                    KeyCode::Esc | KeyCode::Char('h') | KeyCode::Left => state.focus_list(),
+                    KeyCode::Char('i') | KeyCode::Enter => state.enter_insert(),
+                    KeyCode::Char('A') => {
+                        state.cursor_pos = state.current_macro().len();
+                        state.enter_insert();
+                    }
+                    KeyCode::Char('I') => {
+                        state.cursor_pos = 0;
+                        state.enter_insert();
+                    }
+                    KeyCode::Char('0') => state.cursor_pos = 0,
+                    KeyCode::Char('$') => {
+                        state.cursor_pos = state.current_macro().len();
+                    }
+                    KeyCode::Char('w') => self.save_macros(),
+                    KeyCode::Char('q') => self.should_quit = true,
+                    _ => {}
                 }
-                KeyCode::Up | KeyCode::Char('k') => state.select_up(),
-                KeyCode::Down | KeyCode::Char('j') => state.select_down(),
-                KeyCode::Enter => state.start_editing(),
-                KeyCode::Char('R') => state.start_recording(),
-                KeyCode::Char('d') => self.pending_d = true,
-                KeyCode::Char('w') => self.save_macros(),
-                KeyCode::Char('q') => self.should_quit = true,
-                _ => {}
+            }
+            MacroFocus::Insert => {
+                match key.code {
+                    KeyCode::Esc => state.exit_insert(),
+                    KeyCode::Backspace => state.backspace(),
+                    KeyCode::Left => state.cursor_left(),
+                    KeyCode::Right => state.cursor_right(),
+                    KeyCode::Char(c) => state.type_char(c),
+                    _ => {}
+                }
             }
         }
     }
