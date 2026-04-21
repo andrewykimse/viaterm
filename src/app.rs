@@ -67,6 +67,10 @@ pub struct App {
     // Key tester
     pub key_tester: KeyTesterState,
 
+    // Clipboard
+    pub clipboard_keycode: Option<u16>,
+    pub clipboard_macro: Option<String>,
+
     // Status
     pub status: Option<StatusMessage>,
 
@@ -93,6 +97,8 @@ impl App {
             pending_d: false,
             lighting_state: None,
             key_tester: KeyTesterState::new(),
+            clipboard_keycode: None,
+            clipboard_macro: None,
             status: None,
             definition_path,
         }
@@ -595,6 +601,32 @@ impl App {
                     }
                 }
             }
+            KeyCode::Char('y') => {
+                if let Some(keymap) = &self.keymap {
+                    if let Some(key_idx) = keymap.selected_key {
+                        let key = &self.positioned_keys[key_idx];
+                        let kc = keymap.get_keycode(key);
+                        self.clipboard_keycode = Some(kc);
+                        let label = crate::keyboard::keycodes::keycode_label(kc);
+                        self.status = Some(StatusMessage::info(format!("Yanked: {label}")));
+                    }
+                }
+            }
+            KeyCode::Char('p') => {
+                if let Some(kc) = self.clipboard_keycode {
+                    if let Some(keymap) = &mut self.keymap {
+                        if let Some(key_idx) = keymap.selected_key {
+                            let key = self.positioned_keys[key_idx].clone();
+                            keymap.set_keycode(&key, kc);
+                            let label = crate::keyboard::keycodes::keycode_label(kc);
+                            self.status =
+                                Some(StatusMessage::info(format!("Pasted: {label}")));
+                        }
+                    }
+                } else {
+                    self.status = Some(StatusMessage::info("Nothing to paste"));
+                }
+            }
             KeyCode::Char('m') => self.open_macro_editor(),
             KeyCode::Char('L') => self.open_lighting_editor(),
             KeyCode::Char('b') => self.create_backup(),
@@ -742,6 +774,34 @@ impl App {
                     KeyCode::Enter | KeyCode::Char('l') | KeyCode::Right => state.focus_editor(),
                     KeyCode::Char('R') => state.start_recording(),
                     KeyCode::Char('d') => self.pending_d = true,
+                    KeyCode::Char('y') => {
+                        let text = state.current_macro().to_owned();
+                        if text.is_empty() {
+                            self.status = Some(StatusMessage::info("Macro is empty"));
+                        } else {
+                            self.clipboard_macro = Some(text);
+                            self.status = Some(StatusMessage::info(format!(
+                                "Yanked M{}",
+                                state.selected_macro
+                            )));
+                        }
+                    }
+                    KeyCode::Char('p') => {
+                        if let Some(text) = self.clipboard_macro.clone() {
+                            if let Some(state) = &mut self.macro_state {
+                                if let Some(m) = state.macros.get_mut(state.selected_macro) {
+                                    *m = text;
+                                    state.dirty = true;
+                                    self.status = Some(StatusMessage::info(format!(
+                                        "Pasted into M{}",
+                                        state.selected_macro
+                                    )));
+                                }
+                            }
+                        } else {
+                            self.status = Some(StatusMessage::info("Nothing to paste"));
+                        }
+                    }
                     KeyCode::Char('w') => self.save_macros(),
                     KeyCode::Char('q') => self.should_quit = true,
                     _ => {}

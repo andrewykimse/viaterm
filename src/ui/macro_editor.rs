@@ -199,6 +199,8 @@ impl Widget for MacroEditorWidget<'_> {
                 Span::raw(" Edit  "),
                 Span::styled("R", Style::default().fg(Color::Cyan)),
                 Span::raw(" Record  "),
+                Span::styled("y/p", Style::default().fg(Color::Cyan)),
+                Span::raw(" Copy/Paste  "),
                 Span::styled("dd", Style::default().fg(Color::Cyan)),
                 Span::raw(" Clear  "),
                 Span::styled("w", Style::default().fg(Color::Cyan)),

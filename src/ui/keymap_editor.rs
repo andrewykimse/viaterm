@@ -89,6 +89,8 @@ impl Widget for KeymapEditorWidget<'_> {
             Span::raw(" Col Top/Bottom  "),
             Span::styled("Enter", Style::default().fg(Color::Cyan)),
             Span::raw(" Assign  "),
+            Span::styled("y/p", Style::default().fg(Color::Cyan)),
+            Span::raw(" Copy/Paste  "),
             Span::styled("u/C-r", Style::default().fg(Color::Cyan)),
             Span::raw(" Undo/Redo  "),
             Span::styled("Tab/S-Tab", Style::default().fg(Color::Cyan)),
