@@ -13,12 +13,14 @@ use crate::keyboard::backup::{self, KeymapBackup};
 use crate::keyboard::connection::{KeyboardConnection, scan_devices};
 use crate::keyboard::keymap::KeymapState;
 use crate::keyboard::keymap::Direction;
+use crate::keyboard::lighting::{self, LightingState};
 use crate::keyboard::macros::{self, MacroState};
 use crate::ui::backup_picker::{BackupPickerState, BackupPickerWidget};
 use crate::ui::device_selector::DeviceSelectorWidget;
 use crate::ui::key_picker::{KeyPickerState, KeyPickerWidget};
 use crate::ui::key_tester::{KeyTesterState, KeyTesterWidget};
 use crate::ui::keymap_editor::KeymapEditorWidget;
+use crate::ui::lighting_editor::LightingEditorWidget;
 use crate::ui::macro_editor::MacroEditorWidget;
 use crate::ui::status_bar::{StatusBarWidget, StatusMessage};
 
@@ -28,6 +30,7 @@ pub enum Screen {
     KeymapEditor,
     KeyTester,
     MacroEditor,
+    LightingEditor,
 }
 
 pub struct App {
@@ -58,6 +61,9 @@ pub struct App {
     pub macro_state: Option<MacroState>,
     pub pending_d: bool,
 
+    // Lighting editor
+    pub lighting_state: Option<LightingState>,
+
     // Key tester
     pub key_tester: KeyTesterState,
 
@@ -85,6 +91,7 @@ impl App {
             backup_picker: BackupPickerState::new(),
             macro_state: None,
             pending_d: false,
+            lighting_state: None,
             key_tester: KeyTesterState::new(),
             status: None,
             definition_path,
@@ -162,6 +169,7 @@ impl App {
         self.keymap = None;
         self.definition = None;
         self.macro_state = None;
+        self.lighting_state = None;
         self.positioned_keys.clear();
         self.screen = Screen::DeviceSelect;
         self.status = Some(StatusMessage::info("Disconnected"));
@@ -351,6 +359,72 @@ impl App {
         }
     }
 
+    fn open_lighting_editor(&mut self) {
+        let conn = match self.connection.as_ref() {
+            Some(c) => c,
+            None => return,
+        };
+
+        match lighting::detect_lighting(conn) {
+            Ok(state) => {
+                if state.sections.is_empty() {
+                    self.status =
+                        Some(StatusMessage::info("No lighting features detected"));
+                } else {
+                    let names: Vec<&str> =
+                        state.sections.iter().map(|s| s.lighting_type.label()).collect();
+                    self.status = Some(StatusMessage::info(format!(
+                        "Detected: {}",
+                        names.join(", ")
+                    )));
+                    self.lighting_state = Some(state);
+                    self.screen = Screen::LightingEditor;
+                }
+            }
+            Err(e) => {
+                self.status =
+                    Some(StatusMessage::error(format!("Failed to read lighting: {e}")));
+            }
+        }
+    }
+
+    fn save_lighting_settings(&mut self) {
+        let state = match self.lighting_state.as_mut() {
+            Some(s) => s,
+            None => return,
+        };
+
+        if !state.dirty {
+            self.status = Some(StatusMessage::info("No lighting changes to save"));
+            return;
+        }
+
+        match self.connection.as_ref() {
+            Some(conn) => match lighting::save_lighting(conn) {
+                Ok(()) => {
+                    state.dirty = false;
+                    self.status = Some(StatusMessage::info("Lighting saved to EEPROM"));
+                }
+                Err(e) => {
+                    self.status =
+                        Some(StatusMessage::error(format!("Lighting save failed: {e}")));
+                }
+            },
+            None => {
+                self.status = Some(StatusMessage::error("Not connected"));
+            }
+        }
+    }
+
+    /// Push current lighting values to the keyboard for live preview.
+    fn apply_lighting_live(&self) {
+        if let (Some(conn), Some(state)) =
+            (self.connection.as_ref(), self.lighting_state.as_ref())
+        {
+            let _ = lighting::apply_lighting(conn, state);
+        }
+    }
+
     pub fn handle_event(&mut self, event: Event) {
         if let Event::Key(key) = event {
             if self.backup_picker.active {
@@ -363,6 +437,7 @@ impl App {
                     Screen::KeymapEditor => self.handle_editor_key(key),
                     Screen::KeyTester => self.handle_key_tester_key(key),
                     Screen::MacroEditor => self.handle_macro_editor_key(key),
+                    Screen::LightingEditor => self.handle_lighting_editor_key(key),
                 }
             }
         }
@@ -521,6 +596,7 @@ impl App {
                 }
             }
             KeyCode::Char('m') => self.open_macro_editor(),
+            KeyCode::Char('L') => self.open_lighting_editor(),
             KeyCode::Char('b') => self.create_backup(),
             KeyCode::Char('r') => self.open_restore_picker(),
             KeyCode::Char('w') => {
@@ -705,6 +781,72 @@ impl App {
         }
     }
 
+    fn handle_lighting_editor_key(&mut self, key: KeyEvent) {
+        let step: i16 = if key.modifiers.contains(KeyModifiers::SHIFT) {
+            25
+        } else {
+            5
+        };
+
+        match key.code {
+            KeyCode::Esc => {
+                self.lighting_state = None;
+                self.screen = Screen::KeymapEditor;
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                if let Some(state) = &mut self.lighting_state {
+                    state.select_up();
+                }
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                if let Some(state) = &mut self.lighting_state {
+                    state.select_down();
+                }
+            }
+            KeyCode::Right | KeyCode::Char('l') => {
+                if let Some(state) = &mut self.lighting_state {
+                    state.adjust(step);
+                }
+                self.apply_lighting_live();
+            }
+            KeyCode::Left | KeyCode::Char('h') => {
+                if let Some(state) = &mut self.lighting_state {
+                    state.adjust(-step);
+                }
+                self.apply_lighting_live();
+            }
+            KeyCode::Char('H') => {
+                if let Some(state) = &mut self.lighting_state {
+                    state.adjust(-25);
+                }
+                self.apply_lighting_live();
+            }
+            KeyCode::Char('L') => {
+                if let Some(state) = &mut self.lighting_state {
+                    state.adjust(25);
+                }
+                self.apply_lighting_live();
+            }
+            KeyCode::Tab => {
+                if let Some(state) = &mut self.lighting_state {
+                    if key.modifiers.contains(KeyModifiers::SHIFT) {
+                        state.prev_section();
+                    } else {
+                        state.next_section();
+                    }
+                }
+            }
+            KeyCode::BackTab => {
+                if let Some(state) = &mut self.lighting_state {
+                    state.prev_section();
+                }
+            }
+            KeyCode::Char('w') => self.save_lighting_settings(),
+            KeyCode::Char('q') => self.should_quit = true,
+            _ => {}
+        }
+    }
+
     fn handle_backup_picker_key(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Esc => self.backup_picker.close(),
@@ -741,6 +883,20 @@ impl App {
                         .map(|d| d.name.as_str())
                         .unwrap_or("Unknown");
                     let widget = MacroEditorWidget {
+                        state,
+                        keyboard_name: name,
+                    };
+                    frame.render_widget(widget, area);
+                }
+            }
+            Screen::LightingEditor => {
+                if let Some(state) = &self.lighting_state {
+                    let name = self
+                        .definition
+                        .as_ref()
+                        .map(|d| d.name.as_str())
+                        .unwrap_or("Unknown");
+                    let widget = LightingEditorWidget {
                         state,
                         keyboard_name: name,
                     };

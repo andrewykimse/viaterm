@@ -95,6 +95,8 @@ impl Widget for KeymapEditorWidget<'_> {
             Span::raw(" Layer  "),
             Span::styled("m", Style::default().fg(Color::Cyan)),
             Span::raw(" Macros  "),
+            Span::styled("L", Style::default().fg(Color::Cyan)),
+            Span::raw(" Lighting  "),
             Span::styled("b/r", Style::default().fg(Color::Cyan)),
             Span::raw(" Backup/Restore  "),
             Span::styled("w", Style::default().fg(Color::Cyan)),

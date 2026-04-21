@@ -1,6 +1,7 @@
 pub mod backup_picker;
 pub mod layout;
 pub mod keymap_editor;
+pub mod lighting_editor;
 pub mod macro_editor;
 pub mod device_selector;
 pub mod key_picker;
