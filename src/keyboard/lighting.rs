@@ -213,6 +213,196 @@ pub fn apply_lighting(conn: &KeyboardConnection, state: &LightingState) -> Resul
     Ok(())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_rgb_section() -> LightingSection {
+        LightingSection {
+            lighting_type: LightingType::RgbLight,
+            params: vec![
+                LightingParam::new("Brightness", 128),
+                LightingParam::new("Effect", 5),
+                LightingParam::new("Speed", 100),
+                LightingParam::new("Hue", 200),
+                LightingParam::new("Saturation", 255),
+            ],
+        }
+    }
+
+    fn make_backlight_section() -> LightingSection {
+        LightingSection {
+            lighting_type: LightingType::Backlight,
+            params: vec![
+                LightingParam::new("Brightness", 64),
+                LightingParam::new("Effect", 1),
+            ],
+        }
+    }
+
+    fn make_state() -> LightingState {
+        LightingState {
+            sections: vec![make_backlight_section(), make_rgb_section()],
+            active_section: 0,
+            selected_param: 0,
+            dirty: false,
+        }
+    }
+
+    // --- LightingType ---
+
+    #[test]
+    fn lighting_type_labels() {
+        assert_eq!(LightingType::Backlight.label(), "Backlight");
+        assert_eq!(LightingType::RgbLight.label(), "RGB Light");
+        assert_eq!(LightingType::RgbMatrix.label(), "RGB Matrix");
+        assert_eq!(LightingType::LedMatrix.label(), "LED Matrix");
+    }
+
+    // --- LightingParam ---
+
+    #[test]
+    fn param_default_max() {
+        let p = LightingParam::new("Test", 42);
+        assert_eq!(p.value, 42);
+        assert_eq!(p.max, 255);
+    }
+
+    // --- section navigation ---
+
+    #[test]
+    fn next_section_wraps() {
+        let mut s = make_state();
+        assert_eq!(s.active_section, 0);
+        s.next_section();
+        assert_eq!(s.active_section, 1);
+        s.next_section();
+        assert_eq!(s.active_section, 0); // wraps
+    }
+
+    #[test]
+    fn prev_section_wraps() {
+        let mut s = make_state();
+        s.prev_section();
+        assert_eq!(s.active_section, 1); // wraps to last
+        s.prev_section();
+        assert_eq!(s.active_section, 0);
+    }
+
+    #[test]
+    fn section_switch_resets_param_selection() {
+        let mut s = make_state();
+        s.selected_param = 1;
+        s.next_section();
+        assert_eq!(s.selected_param, 0);
+    }
+
+    // --- param navigation ---
+
+    #[test]
+    fn select_down_up() {
+        let mut s = make_state();
+        s.select_down();
+        assert_eq!(s.selected_param, 1);
+        s.select_up();
+        assert_eq!(s.selected_param, 0);
+    }
+
+    #[test]
+    fn select_down_clamps() {
+        let mut s = make_state();
+        // Backlight section has 2 params (indices 0,1)
+        s.select_down();
+        s.select_down(); // should clamp at 1
+        assert_eq!(s.selected_param, 1);
+    }
+
+    #[test]
+    fn select_up_clamps_at_zero() {
+        let mut s = make_state();
+        s.select_up(); // already at 0
+        assert_eq!(s.selected_param, 0);
+    }
+
+    // --- adjust ---
+
+    #[test]
+    fn adjust_increases() {
+        let mut s = make_state();
+        let before = s.sections[0].params[0].value; // 64
+        s.adjust(10);
+        assert_eq!(s.sections[0].params[0].value, before + 10);
+        assert!(s.dirty);
+    }
+
+    #[test]
+    fn adjust_decreases() {
+        let mut s = make_state();
+        let before = s.sections[0].params[0].value;
+        s.adjust(-10);
+        assert_eq!(s.sections[0].params[0].value, before - 10);
+    }
+
+    #[test]
+    fn adjust_clamps_at_max() {
+        let mut s = make_state();
+        s.adjust(255); // way over max
+        assert_eq!(s.sections[0].params[0].value, 255);
+    }
+
+    #[test]
+    fn adjust_clamps_at_zero() {
+        let mut s = make_state();
+        s.adjust(-255); // way under min
+        assert_eq!(s.sections[0].params[0].value, 0);
+    }
+
+    #[test]
+    fn adjust_no_change_not_dirty() {
+        let mut s = make_state();
+        s.sections[0].params[0].value = 0;
+        s.adjust(-5); // already at 0, clamped to 0
+        assert!(!s.dirty);
+    }
+
+    #[test]
+    fn adjust_targets_selected_param() {
+        let mut s = make_state();
+        s.next_section(); // switch to RGB section
+        s.selected_param = 3; // Hue
+        let before = s.sections[1].params[3].value; // 200
+        s.adjust(5);
+        assert_eq!(s.sections[1].params[3].value, before + 5);
+    }
+
+    // --- current_section / param_count ---
+
+    #[test]
+    fn current_section() {
+        let s = make_state();
+        let section = s.current_section().unwrap();
+        assert_eq!(section.lighting_type, LightingType::Backlight);
+    }
+
+    #[test]
+    fn param_count() {
+        let s = make_state();
+        assert_eq!(s.param_count(), 2); // backlight has 2 params
+    }
+
+    #[test]
+    fn empty_state() {
+        let s = LightingState {
+            sections: vec![],
+            active_section: 0,
+            selected_param: 0,
+            dirty: false,
+        };
+        assert!(s.current_section().is_none());
+        assert_eq!(s.param_count(), 0);
+    }
+}
+
 /// Persist lighting settings to keyboard EEPROM.
 pub fn save_lighting(conn: &KeyboardConnection) -> Result<()> {
     conn.api

@@ -64,3 +64,164 @@ pub fn layout_bounds(keys: &[PositionedKey]) -> (f64, f64) {
     let max_y = keys.iter().map(|k| k.y + k.h).fold(0.0_f64, f64::max);
     (max_x, max_y)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::definition::schema::{KeyDefinition, Layouts};
+    use std::collections::HashMap;
+
+    fn key(row: u8, col: u8, x: f64, y: f64) -> KeyDefinition {
+        KeyDefinition {
+            row,
+            col,
+            x,
+            y,
+            w: 1.0,
+            h: 1.0,
+            r: 0.0,
+            rx: 0.0,
+            ry: 0.0,
+            d: false,
+            color: None,
+            ei: None,
+        }
+    }
+
+    fn make_layouts(keys: Vec<KeyDefinition>) -> Layouts {
+        Layouts {
+            width: None,
+            height: None,
+            keys,
+            keymap: vec![],
+            labels: None,
+            option_keys: HashMap::new(),
+        }
+    }
+
+    // --- parse_layout ---
+
+    #[test]
+    fn parse_empty_layout() {
+        let layouts = make_layouts(vec![]);
+        let keys = parse_layout(&layouts);
+        assert!(keys.is_empty());
+    }
+
+    #[test]
+    fn parse_basic_layout() {
+        let layouts = make_layouts(vec![
+            key(0, 0, 0.0, 0.0),
+            key(0, 1, 1.0, 0.0),
+            key(1, 0, 0.0, 1.0),
+        ]);
+        let keys = parse_layout(&layouts);
+        assert_eq!(keys.len(), 3);
+        // Should be sorted top-to-bottom, left-to-right
+        assert_eq!(keys[0].row, 0);
+        assert_eq!(keys[0].col, 0);
+        assert_eq!(keys[1].row, 0);
+        assert_eq!(keys[1].col, 1);
+        assert_eq!(keys[2].row, 1);
+        assert_eq!(keys[2].col, 0);
+    }
+
+    #[test]
+    fn parse_excludes_decals() {
+        let mut decal = key(0, 2, 2.0, 0.0);
+        decal.d = true;
+        let layouts = make_layouts(vec![
+            key(0, 0, 0.0, 0.0),
+            decal,
+        ]);
+        let keys = parse_layout(&layouts);
+        assert_eq!(keys.len(), 1);
+    }
+
+    #[test]
+    fn parse_preserves_dimensions() {
+        let mut wide = key(0, 0, 0.0, 0.0);
+        wide.w = 2.25;
+        wide.h = 1.5;
+        let layouts = make_layouts(vec![wide]);
+        let keys = parse_layout(&layouts);
+        assert_eq!(keys[0].w, 2.25);
+        assert_eq!(keys[0].h, 1.5);
+    }
+
+    #[test]
+    fn parse_indices_sequential() {
+        let layouts = make_layouts(vec![
+            key(0, 0, 0.0, 0.0),
+            key(0, 1, 1.0, 0.0),
+            key(0, 2, 2.0, 0.0),
+        ]);
+        let keys = parse_layout(&layouts);
+        for (i, k) in keys.iter().enumerate() {
+            assert_eq!(k.index, i);
+        }
+    }
+
+    #[test]
+    fn parse_merges_option_keys() {
+        let mut layouts = make_layouts(vec![key(0, 0, 0.0, 0.0)]);
+        let mut group0 = HashMap::new();
+        group0.insert("0".to_string(), vec![key(0, 1, 1.0, 0.0)]);
+        group0.insert("1".to_string(), vec![key(0, 1, 1.0, 0.0)]);
+        layouts.option_keys.insert("0".to_string(), group0);
+
+        let keys = parse_layout(&layouts);
+        // base key + option "0" default key = 2 keys
+        assert_eq!(keys.len(), 2);
+    }
+
+    #[test]
+    fn parse_option_keys_only_default() {
+        // Only option "0" should be merged, not option "1"
+        let mut layouts = make_layouts(vec![key(0, 0, 0.0, 0.0)]);
+        let mut group0 = HashMap::new();
+        group0.insert("0".to_string(), vec![key(0, 1, 1.0, 0.0)]);
+        group0.insert("1".to_string(), vec![key(0, 2, 2.0, 0.0), key(0, 3, 3.0, 0.0)]);
+        layouts.option_keys.insert("0".to_string(), group0);
+
+        let keys = parse_layout(&layouts);
+        assert_eq!(keys.len(), 2); // 1 base + 1 from option "0"
+    }
+
+    // --- layout_bounds ---
+
+    #[test]
+    fn bounds_empty() {
+        let (x, y) = layout_bounds(&[]);
+        assert_eq!(x, 0.0);
+        assert_eq!(y, 0.0);
+    }
+
+    #[test]
+    fn bounds_single_key() {
+        let keys = vec![PositionedKey {
+            x: 0.0,
+            y: 0.0,
+            w: 1.0,
+            h: 1.0,
+            row: 0,
+            col: 0,
+            index: 0,
+        }];
+        let (bx, by) = layout_bounds(&keys);
+        assert_eq!(bx, 1.0);
+        assert_eq!(by, 1.0);
+    }
+
+    #[test]
+    fn bounds_multiple_keys() {
+        let keys = vec![
+            PositionedKey { x: 0.0, y: 0.0, w: 1.0, h: 1.0, row: 0, col: 0, index: 0 },
+            PositionedKey { x: 1.0, y: 0.0, w: 2.25, h: 1.0, row: 0, col: 1, index: 1 },
+            PositionedKey { x: 0.0, y: 1.0, w: 1.0, h: 2.0, row: 1, col: 0, index: 2 },
+        ];
+        let (bx, by) = layout_bounds(&keys);
+        assert_eq!(bx, 3.25); // 1.0 + 2.25
+        assert_eq!(by, 3.0);  // 1.0 + 2.0
+    }
+}

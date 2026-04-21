@@ -113,3 +113,104 @@ pub fn validate_backup(backup: &KeymapBackup, matrix: &MatrixInfo, layer_count: 
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_backup(rows: u8, cols: u8, num_layers: usize) -> KeymapBackup {
+        KeymapBackup {
+            version: 1,
+            vendor_id: 0x1234,
+            product_id: 0x5678,
+            product_name: Some("Test KB".to_string()),
+            timestamp: "2026-04-21T120000".to_string(),
+            matrix: MatrixInfo { rows, cols },
+            layers: (0..num_layers)
+                .map(|_| vec![0u16; (rows as usize) * (cols as usize)])
+                .collect(),
+            macros: None,
+        }
+    }
+
+    // --- validate_backup ---
+
+    #[test]
+    fn validate_matching_backup() {
+        let backup = make_backup(4, 12, 2);
+        let matrix = MatrixInfo { rows: 4, cols: 12 };
+        assert!(validate_backup(&backup, &matrix, 4).is_ok());
+    }
+
+    #[test]
+    fn validate_fewer_layers_ok() {
+        let backup = make_backup(4, 12, 2);
+        let matrix = MatrixInfo { rows: 4, cols: 12 };
+        // Backup has 2 layers, keyboard supports 4 — fine
+        assert!(validate_backup(&backup, &matrix, 4).is_ok());
+    }
+
+    #[test]
+    fn validate_exact_layers_ok() {
+        let backup = make_backup(4, 12, 4);
+        let matrix = MatrixInfo { rows: 4, cols: 12 };
+        assert!(validate_backup(&backup, &matrix, 4).is_ok());
+    }
+
+    #[test]
+    fn validate_too_many_layers_fails() {
+        let backup = make_backup(4, 12, 5);
+        let matrix = MatrixInfo { rows: 4, cols: 12 };
+        let err = validate_backup(&backup, &matrix, 4);
+        assert!(err.is_err());
+        assert!(err.unwrap_err().to_string().contains("layers"));
+    }
+
+    #[test]
+    fn validate_row_mismatch_fails() {
+        let backup = make_backup(5, 12, 2);
+        let matrix = MatrixInfo { rows: 4, cols: 12 };
+        let err = validate_backup(&backup, &matrix, 4);
+        assert!(err.is_err());
+        assert!(err.unwrap_err().to_string().contains("Matrix mismatch"));
+    }
+
+    #[test]
+    fn validate_col_mismatch_fails() {
+        let backup = make_backup(4, 14, 2);
+        let matrix = MatrixInfo { rows: 4, cols: 12 };
+        assert!(validate_backup(&backup, &matrix, 4).is_err());
+    }
+
+    // --- serialization roundtrip ---
+
+    #[test]
+    fn backup_serde_roundtrip() {
+        let backup = make_backup(4, 12, 2);
+        let json = serde_json::to_string(&backup).unwrap();
+        let restored: KeymapBackup = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.version, backup.version);
+        assert_eq!(restored.vendor_id, backup.vendor_id);
+        assert_eq!(restored.product_id, backup.product_id);
+        assert_eq!(restored.matrix.rows, 4);
+        assert_eq!(restored.matrix.cols, 12);
+        assert_eq!(restored.layers.len(), 2);
+        assert_eq!(restored.timestamp, backup.timestamp);
+    }
+
+    #[test]
+    fn backup_with_macros_roundtrip() {
+        let mut backup = make_backup(2, 3, 1);
+        backup.macros = Some(vec![0x68, 0x69, 0x00]); // "hi\0"
+        let json = serde_json::to_string(&backup).unwrap();
+        let restored: KeymapBackup = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.macros, Some(vec![0x68, 0x69, 0x00]));
+    }
+
+    #[test]
+    fn backup_without_macros_omits_field() {
+        let backup = make_backup(2, 3, 1);
+        let json = serde_json::to_string(&backup).unwrap();
+        assert!(!json.contains("macros"));
+    }
+}

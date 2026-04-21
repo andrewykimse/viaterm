@@ -334,3 +334,328 @@ pub enum Direction {
     Left,
     Right,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::definition::layout_parser::PositionedKey;
+    use crate::definition::schema::MatrixInfo;
+
+    fn matrix_3x3() -> MatrixInfo {
+        MatrixInfo { rows: 3, cols: 3 }
+    }
+
+    /// Build a simple 3x3 grid of keys for testing navigation.
+    fn keys_3x3() -> Vec<PositionedKey> {
+        let mut keys = Vec::new();
+        for row in 0..3u8 {
+            for col in 0..3u8 {
+                let idx = (row as usize) * 3 + col as usize;
+                keys.push(PositionedKey {
+                    x: col as f64,
+                    y: row as f64,
+                    w: 1.0,
+                    h: 1.0,
+                    row,
+                    col,
+                    index: idx,
+                });
+            }
+        }
+        keys
+    }
+
+    fn make_keymap() -> KeymapState {
+        // 2 layers, 3x3 matrix, distinct keycodes
+        let layer0: Vec<u16> = (0..9).map(|i| 0x04 + i).collect();
+        let layer1: Vec<u16> = (0..9).map(|i| 0x20 + i).collect();
+        let mut km = KeymapState::new(vec![layer0, layer1], matrix_3x3());
+        km.selected_key = Some(0);
+        km
+    }
+
+    // --- Basic state ---
+
+    #[test]
+    fn layer_count() {
+        let km = make_keymap();
+        assert_eq!(km.layer_count(), 2);
+    }
+
+    #[test]
+    fn initial_layer_is_zero() {
+        let km = make_keymap();
+        assert_eq!(km.active_layer, 0);
+    }
+
+    // --- get/set keycode ---
+
+    #[test]
+    fn get_keycode() {
+        let km = make_keymap();
+        let keys = keys_3x3();
+        assert_eq!(km.get_keycode(&keys[0]), 0x04); // row=0, col=0
+        assert_eq!(km.get_keycode(&keys[4]), 0x08); // row=1, col=1
+    }
+
+    #[test]
+    fn set_keycode_marks_dirty() {
+        let mut km = make_keymap();
+        let keys = keys_3x3();
+        assert!(!km.has_unsaved_changes());
+        km.set_keycode(&keys[0], 0xFF);
+        assert!(km.has_unsaved_changes());
+        assert_eq!(km.get_keycode(&keys[0]), 0xFF);
+    }
+
+    #[test]
+    fn set_same_keycode_is_noop() {
+        let mut km = make_keymap();
+        let keys = keys_3x3();
+        let original = km.get_keycode(&keys[0]);
+        km.set_keycode(&keys[0], original);
+        assert!(!km.has_unsaved_changes());
+    }
+
+    // --- dirty tracking ---
+
+    #[test]
+    fn drain_dirty_returns_changes() {
+        let mut km = make_keymap();
+        let keys = keys_3x3();
+        km.set_keycode(&keys[0], 0xAA);
+        km.set_keycode(&keys[4], 0xBB);
+        let dirty = km.drain_dirty();
+        assert_eq!(dirty.len(), 2);
+        assert!(!km.has_unsaved_changes());
+    }
+
+    #[test]
+    fn drain_dirty_correct_row_col() {
+        let mut km = make_keymap();
+        let keys = keys_3x3();
+        // keys[5] is row=1, col=2
+        km.set_keycode(&keys[5], 0xCC);
+        let dirty = km.drain_dirty();
+        assert_eq!(dirty.len(), 1);
+        let (layer, row, col, kc) = dirty[0];
+        assert_eq!(layer, 0);
+        assert_eq!(row, 1);
+        assert_eq!(col, 2);
+        assert_eq!(kc, 0xCC);
+    }
+
+    // --- undo / redo ---
+
+    #[test]
+    fn undo_restores_previous() {
+        let mut km = make_keymap();
+        let keys = keys_3x3();
+        let original = km.get_keycode(&keys[0]);
+        km.set_keycode(&keys[0], 0xAA);
+        assert_eq!(km.get_keycode(&keys[0]), 0xAA);
+
+        km.undo();
+        assert_eq!(km.get_keycode(&keys[0]), original);
+    }
+
+    #[test]
+    fn redo_reapplies() {
+        let mut km = make_keymap();
+        let keys = keys_3x3();
+        km.set_keycode(&keys[0], 0xAA);
+        km.undo();
+        km.redo();
+        assert_eq!(km.get_keycode(&keys[0]), 0xAA);
+    }
+
+    #[test]
+    fn undo_returns_none_when_empty() {
+        let mut km = make_keymap();
+        assert!(km.undo().is_none());
+    }
+
+    #[test]
+    fn redo_returns_none_when_empty() {
+        let mut km = make_keymap();
+        assert!(km.redo().is_none());
+    }
+
+    #[test]
+    fn new_edit_clears_redo_stack() {
+        let mut km = make_keymap();
+        let keys = keys_3x3();
+        km.set_keycode(&keys[0], 0xAA);
+        km.undo();
+        // Now redo stack has one entry
+        km.set_keycode(&keys[0], 0xBB);
+        // Redo stack should be cleared
+        assert!(km.redo().is_none());
+    }
+
+    #[test]
+    fn multiple_undos() {
+        let mut km = make_keymap();
+        let keys = keys_3x3();
+        let original = km.get_keycode(&keys[0]);
+        km.set_keycode(&keys[0], 0xAA);
+        km.set_keycode(&keys[0], 0xBB);
+        km.set_keycode(&keys[0], 0xCC);
+
+        km.undo();
+        assert_eq!(km.get_keycode(&keys[0]), 0xBB);
+        km.undo();
+        assert_eq!(km.get_keycode(&keys[0]), 0xAA);
+        km.undo();
+        assert_eq!(km.get_keycode(&keys[0]), original);
+    }
+
+    // --- layer switching ---
+
+    #[test]
+    fn next_layer_wraps() {
+        let mut km = make_keymap();
+        assert_eq!(km.active_layer, 0);
+        km.next_layer();
+        assert_eq!(km.active_layer, 1);
+        km.next_layer();
+        assert_eq!(km.active_layer, 0); // wraps
+    }
+
+    #[test]
+    fn prev_layer_wraps() {
+        let mut km = make_keymap();
+        km.prev_layer();
+        assert_eq!(km.active_layer, 1); // wraps to last
+        km.prev_layer();
+        assert_eq!(km.active_layer, 0);
+    }
+
+    #[test]
+    fn layer_switch_reads_correct_layer() {
+        let mut km = make_keymap();
+        let keys = keys_3x3();
+        let l0_val = km.get_keycode(&keys[0]);
+        km.next_layer();
+        let l1_val = km.get_keycode(&keys[0]);
+        assert_ne!(l0_val, l1_val);
+        assert_eq!(l1_val, 0x20);
+    }
+
+    // --- navigation ---
+
+    #[test]
+    fn navigate_right() {
+        let mut km = make_keymap();
+        let keys = keys_3x3();
+        km.selected_key = Some(0); // top-left
+        km.navigate(Direction::Right, &keys);
+        assert_eq!(km.selected_key, Some(1));
+    }
+
+    #[test]
+    fn navigate_down() {
+        let mut km = make_keymap();
+        let keys = keys_3x3();
+        km.selected_key = Some(0);
+        km.navigate(Direction::Down, &keys);
+        assert_eq!(km.selected_key, Some(3)); // row below
+    }
+
+    #[test]
+    fn navigate_left_from_leftmost_stays() {
+        let mut km = make_keymap();
+        let keys = keys_3x3();
+        km.selected_key = Some(0);
+        km.navigate(Direction::Left, &keys);
+        assert_eq!(km.selected_key, Some(0)); // no key to left
+    }
+
+    #[test]
+    fn navigate_up_from_topmost_stays() {
+        let mut km = make_keymap();
+        let keys = keys_3x3();
+        km.selected_key = Some(1);
+        km.navigate(Direction::Up, &keys);
+        assert_eq!(km.selected_key, Some(1)); // no key above
+    }
+
+    #[test]
+    fn navigate_from_none_selects_first() {
+        let mut km = make_keymap();
+        let keys = keys_3x3();
+        km.selected_key = None;
+        km.navigate(Direction::Right, &keys);
+        assert_eq!(km.selected_key, Some(0));
+    }
+
+    // --- jump methods ---
+
+    #[test]
+    fn jump_row_start() {
+        let mut km = make_keymap();
+        let keys = keys_3x3();
+        km.selected_key = Some(5); // row=1, col=2
+        km.jump_row_start(&keys);
+        assert_eq!(km.selected_key, Some(3)); // row=1, col=0
+    }
+
+    #[test]
+    fn jump_row_end() {
+        let mut km = make_keymap();
+        let keys = keys_3x3();
+        km.selected_key = Some(3); // row=1, col=0
+        km.jump_row_end(&keys);
+        assert_eq!(km.selected_key, Some(5)); // row=1, col=2
+    }
+
+    #[test]
+    fn jump_col_start() {
+        let mut km = make_keymap();
+        let keys = keys_3x3();
+        km.selected_key = Some(7); // row=2, col=1
+        km.jump_col_start(&keys);
+        assert_eq!(km.selected_key, Some(1)); // row=0, col=1
+    }
+
+    #[test]
+    fn jump_col_end() {
+        let mut km = make_keymap();
+        let keys = keys_3x3();
+        km.selected_key = Some(1); // row=0, col=1
+        km.jump_col_end(&keys);
+        assert_eq!(km.selected_key, Some(7)); // row=2, col=1
+    }
+
+    // --- restore_layers ---
+
+    #[test]
+    fn restore_layers_updates_values() {
+        let mut km = make_keymap();
+        let keys = keys_3x3();
+        let new_layer0: Vec<u16> = (0..9).map(|i| 0x50 + i).collect();
+        km.restore_layers(vec![new_layer0]);
+        assert_eq!(km.get_keycode(&keys[0]), 0x50);
+        assert!(km.has_unsaved_changes());
+    }
+
+    #[test]
+    fn restore_layers_clears_undo() {
+        let mut km = make_keymap();
+        let keys = keys_3x3();
+        km.set_keycode(&keys[0], 0xAA);
+        let new_layers = vec![vec![0u16; 9], vec![0u16; 9]];
+        km.restore_layers(new_layers);
+        assert!(km.undo().is_none());
+    }
+
+    #[test]
+    fn restore_unchanged_values_not_dirty() {
+        let mut km = make_keymap();
+        // Restore with exact same values — nothing should be dirty
+        let same_layer0: Vec<u16> = (0..9).map(|i| 0x04 + i).collect();
+        let same_layer1: Vec<u16> = (0..9).map(|i| 0x20 + i).collect();
+        km.restore_layers(vec![same_layer0, same_layer1]);
+        assert!(!km.has_unsaved_changes());
+    }
+}

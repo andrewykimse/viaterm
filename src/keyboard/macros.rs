@@ -412,6 +412,266 @@ impl MacroState {
     }
 }
 
+// --- Tests ---
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- parse_macros ---
+
+    #[test]
+    fn parse_empty_buffer() {
+        let macros = parse_macros(&[], 3);
+        assert_eq!(macros.len(), 3);
+        assert!(macros.iter().all(|m| m.is_empty()));
+    }
+
+    #[test]
+    fn parse_single_text_macro() {
+        // "hi" followed by null
+        let bytes = vec![b'h', b'i', 0x00];
+        let macros = parse_macros(&bytes, 2);
+        assert_eq!(macros[0], "hi");
+        assert_eq!(macros[1], "");
+    }
+
+    #[test]
+    fn parse_multiple_macros() {
+        // "ab" null "cd" null
+        let bytes = vec![b'a', b'b', 0x00, b'c', b'd', 0x00];
+        let macros = parse_macros(&bytes, 2);
+        assert_eq!(macros[0], "ab");
+        assert_eq!(macros[1], "cd");
+    }
+
+    #[test]
+    fn parse_tap_action() {
+        // SS_TAP(KC_ENT) = 0x01, 0x28
+        let bytes = vec![0x01, 0x28, 0x00];
+        let macros = parse_macros(&bytes, 1);
+        assert_eq!(macros[0], "{tap:KC_ENT}");
+    }
+
+    #[test]
+    fn parse_down_up_actions() {
+        let bytes = vec![0x02, 0xE0, 0x03, 0xE0, 0x00];
+        let macros = parse_macros(&bytes, 1);
+        assert_eq!(macros[0], "{down:KC_LCTL}{up:KC_LCTL}");
+    }
+
+    #[test]
+    fn parse_unknown_keycode_hex() {
+        // SS_TAP with unknown keycode 0xFF
+        let bytes = vec![0x01, 0xFF, 0x00];
+        let macros = parse_macros(&bytes, 1);
+        assert_eq!(macros[0], "{tap:0xFF}");
+    }
+
+    #[test]
+    fn parse_pads_to_count() {
+        let bytes = vec![0x00];
+        let macros = parse_macros(&bytes, 5);
+        assert_eq!(macros.len(), 5);
+    }
+
+    // --- encode_macros ---
+
+    #[test]
+    fn encode_plain_text() {
+        let macros = vec!["hello".to_string()];
+        let bytes = encode_macros(&macros);
+        assert_eq!(bytes, vec![b'h', b'e', b'l', b'l', b'o', 0x00]);
+    }
+
+    #[test]
+    fn encode_multiple_macros() {
+        let macros = vec!["a".to_string(), "b".to_string()];
+        let bytes = encode_macros(&macros);
+        assert_eq!(bytes, vec![b'a', 0x00, b'b', 0x00]);
+    }
+
+    #[test]
+    fn encode_tap_action() {
+        let macros = vec!["{tap:KC_ENT}".to_string()];
+        let bytes = encode_macros(&macros);
+        assert_eq!(bytes, vec![0x01, 0x28, 0x00]);
+    }
+
+    #[test]
+    fn encode_down_up_actions() {
+        let macros = vec!["{down:KC_LCTL}{up:KC_LCTL}".to_string()];
+        let bytes = encode_macros(&macros);
+        assert_eq!(bytes, vec![0x02, 0xE0, 0x03, 0xE0, 0x00]);
+    }
+
+    #[test]
+    fn encode_hex_keycode() {
+        let macros = vec!["{tap:0xFF}".to_string()];
+        let bytes = encode_macros(&macros);
+        assert_eq!(bytes, vec![0x01, 0xFF, 0x00]);
+    }
+
+    // --- roundtrip ---
+
+    #[test]
+    fn roundtrip_text_macros() {
+        let original = vec!["hello".to_string(), "world".to_string(), String::new()];
+        let encoded = encode_macros(&original);
+        let decoded = parse_macros(&encoded, 3);
+        assert_eq!(decoded, original);
+    }
+
+    #[test]
+    fn roundtrip_action_macros() {
+        let original = vec![
+            "{down:KC_LCTL}{tap:KC_A}{up:KC_LCTL}".to_string(),
+            "plain text".to_string(),
+        ];
+        let encoded = encode_macros(&original);
+        let decoded = parse_macros(&encoded, 2);
+        assert_eq!(decoded, original);
+    }
+
+    // --- MacroState ---
+
+    fn make_state() -> MacroState {
+        MacroState::new(
+            vec!["first".to_string(), "second".to_string(), String::new()],
+            3,
+        )
+    }
+
+    #[test]
+    fn state_initial() {
+        let s = make_state();
+        assert_eq!(s.selected_macro, 0);
+        assert_eq!(s.focus, MacroFocus::List);
+        assert!(!s.dirty);
+        assert!(!s.recording);
+    }
+
+    #[test]
+    fn state_select_navigation() {
+        let mut s = make_state();
+        s.select_down();
+        assert_eq!(s.selected_macro, 1);
+        s.select_down();
+        assert_eq!(s.selected_macro, 2);
+        s.select_down(); // should clamp
+        assert_eq!(s.selected_macro, 2);
+        s.select_up();
+        assert_eq!(s.selected_macro, 1);
+        s.select_up();
+        assert_eq!(s.selected_macro, 0);
+        s.select_up(); // should clamp
+        assert_eq!(s.selected_macro, 0);
+    }
+
+    #[test]
+    fn state_focus_transitions() {
+        let mut s = make_state();
+        assert_eq!(s.focus, MacroFocus::List);
+        s.focus_editor();
+        assert_eq!(s.focus, MacroFocus::Editor);
+        s.enter_insert();
+        assert_eq!(s.focus, MacroFocus::Insert);
+        s.exit_insert();
+        assert_eq!(s.focus, MacroFocus::Editor);
+        s.focus_list();
+        assert_eq!(s.focus, MacroFocus::List);
+    }
+
+    #[test]
+    fn state_current_macro() {
+        let s = make_state();
+        assert_eq!(s.current_macro(), "first");
+    }
+
+    #[test]
+    fn state_type_char() {
+        let mut s = make_state();
+        s.focus_editor();
+        s.enter_insert();
+        s.cursor_pos = 0;
+        s.type_char('X');
+        assert_eq!(s.macros[0], "Xfirst");
+        assert!(s.dirty);
+    }
+
+    #[test]
+    fn state_backspace() {
+        let mut s = make_state();
+        s.focus_editor();
+        s.enter_insert();
+        // cursor at end of "first" (5)
+        s.backspace();
+        assert_eq!(s.macros[0], "firs");
+        assert!(s.dirty);
+    }
+
+    #[test]
+    fn state_backspace_at_start() {
+        let mut s = make_state();
+        s.cursor_pos = 0;
+        s.backspace(); // should be a no-op
+        assert_eq!(s.macros[0], "first");
+    }
+
+    #[test]
+    fn state_cursor_movement() {
+        let mut s = make_state();
+        s.cursor_pos = 3; // between 'r' and 's'
+        s.cursor_left();
+        assert_eq!(s.cursor_pos, 2);
+        s.cursor_right();
+        assert_eq!(s.cursor_pos, 3);
+    }
+
+    #[test]
+    fn state_clear_current() {
+        let mut s = make_state();
+        s.clear_current();
+        assert_eq!(s.macros[0], "");
+        assert_eq!(s.cursor_pos, 0);
+        assert!(s.dirty);
+    }
+
+    #[test]
+    fn state_recording() {
+        let mut s = make_state();
+        s.start_recording();
+        assert!(s.recording);
+        assert_eq!(s.focus, MacroFocus::Editor);
+        assert!(s.macros[0].is_empty()); // cleared
+
+        s.record_key(KeyCode::Char('h'), KeyModifiers::NONE);
+        s.record_key(KeyCode::Char('i'), KeyModifiers::NONE);
+        assert_eq!(s.macros[0], "hi");
+
+        s.stop_recording();
+        assert!(!s.recording);
+    }
+
+    #[test]
+    fn state_record_modified_key() {
+        let mut s = make_state();
+        s.start_recording();
+        s.record_key(KeyCode::Char('a'), KeyModifiers::CONTROL);
+        assert!(s.macros[0].contains("{down:KC_LCTL}"));
+        assert!(s.macros[0].contains("{tap:KC_A}"));
+        assert!(s.macros[0].contains("{up:KC_LCTL}"));
+    }
+
+    #[test]
+    fn state_record_special_key() {
+        let mut s = make_state();
+        s.start_recording();
+        s.record_key(KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(s.macros[0], "{tap:KC_ENT}");
+    }
+}
+
 /// Map a crossterm KeyCode to a QMK keycode name for macro recording.
 fn crossterm_key_to_qmk(code: &KeyCode) -> Option<&'static str> {
     match code {

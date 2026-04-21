@@ -96,3 +96,151 @@ impl ViaDefinition {
         (self.vendor_product_id & 0xFFFF) as u16
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_minimal_definition() {
+        let json = r#"{
+            "name": "Test Keyboard",
+            "vendorProductId": 305419896,
+            "matrix": { "rows": 4, "cols": 12 },
+            "layouts": { "keys": [] }
+        }"#;
+        let def: ViaDefinition = serde_json::from_str(json).unwrap();
+        assert_eq!(def.name, "Test Keyboard");
+        assert_eq!(def.matrix.rows, 4);
+        assert_eq!(def.matrix.cols, 12);
+        assert!(def.layouts.keys.is_empty());
+    }
+
+    #[test]
+    fn vendor_product_id_split() {
+        let json = r#"{
+            "name": "Test",
+            "vendorProductId": 305419896,
+            "matrix": { "rows": 1, "cols": 1 },
+            "layouts": { "keys": [] }
+        }"#;
+        // 305419896 = 0x12345678
+        let def: ViaDefinition = serde_json::from_str(json).unwrap();
+        assert_eq!(def.vendor_id(), 0x1234);
+        assert_eq!(def.product_id(), 0x5678);
+    }
+
+    #[test]
+    fn parse_with_lighting_none() {
+        let json = r#"{
+            "name": "Test",
+            "vendorProductId": 0,
+            "lighting": "none",
+            "matrix": { "rows": 1, "cols": 1 },
+            "layouts": { "keys": [] }
+        }"#;
+        let def: ViaDefinition = serde_json::from_str(json).unwrap();
+        assert_eq!(def.lighting, serde_json::Value::String("none".to_string()));
+    }
+
+    #[test]
+    fn parse_with_lighting_object() {
+        let json = r#"{
+            "name": "Test",
+            "vendorProductId": 0,
+            "lighting": { "extends": "qmk_rgblight", "effects": [] },
+            "matrix": { "rows": 1, "cols": 1 },
+            "layouts": { "keys": [] }
+        }"#;
+        let def: ViaDefinition = serde_json::from_str(json).unwrap();
+        assert!(def.lighting.is_object());
+    }
+
+    #[test]
+    fn lighting_defaults_to_null() {
+        let json = r#"{
+            "name": "Test",
+            "vendorProductId": 0,
+            "matrix": { "rows": 1, "cols": 1 },
+            "layouts": { "keys": [] }
+        }"#;
+        let def: ViaDefinition = serde_json::from_str(json).unwrap();
+        assert!(def.lighting.is_null());
+    }
+
+    #[test]
+    fn parse_key_definition() {
+        let json = r#"{
+            "name": "Test",
+            "vendorProductId": 0,
+            "matrix": { "rows": 2, "cols": 3 },
+            "layouts": {
+                "keys": [
+                    { "row": 0, "col": 0, "x": 0, "y": 0 },
+                    { "row": 0, "col": 1, "x": 1, "y": 0, "w": 1.5, "h": 2.0 },
+                    { "row": 1, "col": 0, "x": 0, "y": 1, "d": true }
+                ]
+            }
+        }"#;
+        let def: ViaDefinition = serde_json::from_str(json).unwrap();
+        assert_eq!(def.layouts.keys.len(), 3);
+
+        let k0 = &def.layouts.keys[0];
+        assert_eq!(k0.row, 0);
+        assert_eq!(k0.col, 0);
+        assert_eq!(k0.w, 1.0); // default
+        assert_eq!(k0.h, 1.0); // default
+        assert!(!k0.d);
+
+        let k1 = &def.layouts.keys[1];
+        assert_eq!(k1.w, 1.5);
+        assert_eq!(k1.h, 2.0);
+
+        let k2 = &def.layouts.keys[2];
+        assert!(k2.d); // decal
+    }
+
+    #[test]
+    fn parse_with_option_keys() {
+        let json = r#"{
+            "name": "Test",
+            "vendorProductId": 0,
+            "matrix": { "rows": 1, "cols": 2 },
+            "layouts": {
+                "keys": [{ "row": 0, "col": 0, "x": 0, "y": 0 }],
+                "optionKeys": {
+                    "0": {
+                        "0": [{ "row": 0, "col": 1, "x": 1, "y": 0 }],
+                        "1": [{ "row": 0, "col": 1, "x": 1, "y": 0, "w": 2.0 }]
+                    }
+                }
+            }
+        }"#;
+        let def: ViaDefinition = serde_json::from_str(json).unwrap();
+        assert_eq!(def.layouts.keys.len(), 1);
+        assert!(def.layouts.option_keys.contains_key("0"));
+        assert!(def.layouts.option_keys["0"].contains_key("0"));
+        assert!(def.layouts.option_keys["0"].contains_key("1"));
+    }
+
+    #[test]
+    fn parse_menus_default_empty() {
+        let json = r#"{
+            "name": "Test",
+            "vendorProductId": 0,
+            "matrix": { "rows": 1, "cols": 1 },
+            "layouts": { "keys": [] }
+        }"#;
+        let def: ViaDefinition = serde_json::from_str(json).unwrap();
+        assert!(def.menus.is_empty());
+    }
+
+    #[test]
+    fn matrix_info_serde() {
+        let m = MatrixInfo { rows: 5, cols: 14 };
+        let json = serde_json::to_string(&m).unwrap();
+        let restored: MatrixInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.rows, 5);
+        assert_eq!(restored.cols, 14);
+    }
+}

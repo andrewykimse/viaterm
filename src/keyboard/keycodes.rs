@@ -351,3 +351,166 @@ static KEYCODES: &[KeycodeEntry] = &[
     KeycodeEntry { code: 0x5C01, name: "Debug", label: "DBG", category: Special },
     KeycodeEntry { code: 0x5C10, name: "Toggle NKRO", label: "NKRO", category: Special },
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- keycode_label ---
+
+    #[test]
+    fn label_basic_key() {
+        assert_eq!(keycode_label(0x04), "A");
+        assert_eq!(keycode_label(0x28), "ENT");
+    }
+
+    #[test]
+    fn label_none_and_transparent() {
+        assert_eq!(keycode_label(0x0000), "____");
+        assert_eq!(keycode_label(0x0001), "TRNS");
+    }
+
+    #[test]
+    fn label_modifier() {
+        assert_eq!(keycode_label(0xE0), "LCTL");
+        assert_eq!(keycode_label(0xE7), "RGUI");
+    }
+
+    #[test]
+    fn label_layer_tap() {
+        // LT(1, KC_A) = 0x4000 | (1 << 8) | 0x04
+        assert_eq!(keycode_label(0x4104), "LT1(A)");
+    }
+
+    #[test]
+    fn label_mo() {
+        assert_eq!(keycode_label(0x5110), "MO(0)");
+        assert_eq!(keycode_label(0x5113), "MO(3)");
+    }
+
+    #[test]
+    fn label_tg_to_tt_osl() {
+        assert_eq!(keycode_label(0x5121), "TG(1)");
+        assert_eq!(keycode_label(0x5132), "TO(2)");
+        assert_eq!(keycode_label(0x5140), "TT(0)");
+        assert_eq!(keycode_label(0x5153), "OSL(3)");
+    }
+
+    #[test]
+    fn label_mod_tap() {
+        // MT(CTL, A) = 0x6000 | (0x01 << 8) | 0x04
+        assert_eq!(keycode_label(0x6104), "MT(CTL,A)");
+        // MT(SFT, ENT) = 0x6000 | (0x02 << 8) | 0x28
+        assert_eq!(keycode_label(0x6228), "MT(SFT,ENT)");
+    }
+
+    #[test]
+    fn label_macro_range() {
+        assert_eq!(keycode_label(0x7700), "M0");
+        assert_eq!(keycode_label(0x7705), "M5");
+        assert_eq!(keycode_label(0x77FF), "M255");
+    }
+
+    #[test]
+    fn label_unknown_hex() {
+        // A code not in any known range
+        assert_eq!(keycode_label(0xFFFF), "0xFFFF");
+    }
+
+    // --- encode_mt ---
+
+    #[test]
+    fn encode_mt_ctrl_a() {
+        assert_eq!(encode_mt(0x01, 0x04), 0x6104);
+    }
+
+    #[test]
+    fn encode_mt_shift_enter() {
+        assert_eq!(encode_mt(0x02, 0x28), 0x6228);
+    }
+
+    #[test]
+    fn encode_mt_masks_base() {
+        // Base keycode should be masked to 8 bits
+        assert_eq!(encode_mt(0x01, 0x1FF), encode_mt(0x01, 0xFF));
+    }
+
+    // --- filtered_keycodes ---
+
+    #[test]
+    fn filter_by_category() {
+        let mods = filtered_keycodes(KeycodeCategory::Modifiers, None);
+        assert!(mods.len() >= 8); // at least 8 modifiers
+        assert!(mods.iter().all(|e| e.category == KeycodeCategory::Modifiers));
+    }
+
+    #[test]
+    fn filter_by_query() {
+        let results = filtered_keycodes(KeycodeCategory::Basic, Some("enter"));
+        assert!(results.iter().any(|e| e.code == 0x28));
+    }
+
+    #[test]
+    fn filter_query_case_insensitive() {
+        let results = filtered_keycodes(KeycodeCategory::Basic, Some("SPACE"));
+        assert!(results.iter().any(|e| e.code == 0x2C));
+    }
+
+    #[test]
+    fn filter_no_match() {
+        let results = filtered_keycodes(KeycodeCategory::Basic, Some("xyznonexistent"));
+        assert!(results.is_empty());
+    }
+
+    // --- search_keycodes ---
+
+    #[test]
+    fn search_by_name() {
+        let results = search_keycodes("Escape");
+        assert!(results.iter().any(|e| e.code == 0x29));
+    }
+
+    #[test]
+    fn search_by_label() {
+        let results = search_keycodes("BSPC");
+        assert!(results.iter().any(|e| e.code == 0x2A));
+    }
+
+    #[test]
+    fn search_crosses_categories() {
+        let results = search_keycodes("Left");
+        // Should find both Left Ctrl (modifier) and Left arrow (navigation)
+        let codes: Vec<u16> = results.iter().map(|e| e.code).collect();
+        assert!(codes.contains(&0xE0)); // Left Ctrl
+        assert!(codes.contains(&0x50)); // Left arrow
+    }
+
+    // --- mt_base_keycodes ---
+
+    #[test]
+    fn mt_base_excludes_special() {
+        let bases = mt_base_keycodes();
+        assert!(bases.iter().all(|e| e.category != KeycodeCategory::Special));
+        assert!(bases.iter().all(|e| e.code <= 0xFF));
+    }
+
+    #[test]
+    fn mt_base_includes_letters() {
+        let bases = mt_base_keycodes();
+        assert!(bases.iter().any(|e| e.code == 0x04)); // A
+    }
+
+    // --- category labels ---
+
+    #[test]
+    fn all_categories_have_labels() {
+        for cat in KeycodeCategory::ALL {
+            assert!(!cat.label().is_empty());
+        }
+    }
+
+    #[test]
+    fn all_categories_listed() {
+        assert_eq!(KeycodeCategory::ALL.len(), 10);
+    }
+}
