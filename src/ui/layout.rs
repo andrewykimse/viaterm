@@ -49,6 +49,22 @@ impl Widget for KeyboardLayoutWidget<'_> {
         let offset_x = area.x + area.width.saturating_sub(total_cells_x) / 2;
         let offset_y = area.y + area.height.saturating_sub(total_cells_y) / 2;
 
+        // Draw keyboard plate/case background
+        let plate_color = Color::Rgb(30, 32, 42);
+        let plate_pad: u16 = 1;
+        let plate_x1 = offset_x.saturating_sub(plate_pad).max(area.x);
+        let plate_y1 = offset_y.saturating_sub(plate_pad).max(area.y);
+        let plate_x2 = (offset_x + total_cells_x + plate_pad).min(area.right());
+        let plate_y2 = (offset_y + total_cells_y + plate_pad).min(area.bottom());
+        for py in plate_y1..plate_y2 {
+            for px in plate_x1..plate_x2 {
+                if let Some(cell) = buf.cell_mut((px, py)) {
+                    cell.set_char(' ');
+                    cell.set_bg(plate_color);
+                }
+            }
+        }
+
         for key in self.keys {
             let is_selected = self.selected_key == Some(key.index);
 
@@ -62,20 +78,39 @@ impl Widget for KeyboardLayoutWidget<'_> {
                 continue;
             }
 
-            let style = if is_selected {
-                Style::default()
-                    .fg(Color::Black)
-                    .bg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD)
+            let (style, border_style, bg_color) = if is_selected {
+                (
+                    Style::default()
+                        .fg(Color::Black)
+                        .bg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD),
+                    Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                    Some(Color::Cyan),
+                )
             } else {
-                Style::default().fg(Color::White)
+                (
+                    Style::default()
+                        .fg(Color::White)
+                        .bg(Color::Rgb(55, 58, 75))
+                        .add_modifier(Modifier::BOLD),
+                    Style::default().fg(Color::Rgb(140, 150, 170)),
+                    Some(Color::Rgb(55, 58, 75)),
+                )
             };
 
-            let border_style = if is_selected {
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(Color::DarkGray)
-            };
+            // Fill key interior with background
+            if let Some(bg) = bg_color {
+                for fy in (y1 + 1)..y2 {
+                    for fx in (x1 + 1)..x2 {
+                        if fx < area.right() && fy < area.bottom() {
+                            if let Some(cell) = buf.cell_mut((fx, fy)) {
+                                cell.set_char(' ');
+                                cell.set_bg(bg);
+                            }
+                        }
+                    }
+                }
+            }
 
             // Draw box borders
             draw_box(buf, area, x1, y1, x2, y2, border_style, is_selected);
