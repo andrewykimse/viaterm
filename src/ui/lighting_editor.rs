@@ -17,7 +17,7 @@ impl LightingEditorWidget<'_> {
         if area.width == 0 || area.height == 0 {
             return;
         }
-        let bar_width = area.width as u16;
+        let bar_width = area.width;
         let filled = ((value as u32 * bar_width as u32) / 255) as u16;
 
         for x in 0..bar_width {

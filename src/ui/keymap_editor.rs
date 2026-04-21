@@ -49,7 +49,7 @@ impl Widget for KeymapEditorWidget<'_> {
 
         // Layer tabs
         let layer_names: Vec<String> = (0..self.keymap.layer_count())
-            .map(|i| format!(" Layer {} ", i))
+            .map(|i| format!(" Layer {i} "))
             .collect();
         let tabs = Tabs::new(layer_names)
             .select(self.keymap.active_layer as usize)
@@ -68,7 +68,7 @@ impl Widget for KeymapEditorWidget<'_> {
             .keymap
             .layers
             .get(active_layer)
-            .map(|l| l.as_slice())
+            .map(std::vec::Vec::as_slice)
             .unwrap_or(&[]);
 
         let layout_widget = KeyboardLayoutWidget {

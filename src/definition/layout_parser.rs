@@ -26,7 +26,7 @@ pub fn parse_layout(layouts: &Layouts) -> Vec<PositionedKey> {
     let mut all_keys: Vec<&KeyDefinition> = layouts.keys.iter().filter(|k| !k.d).collect();
 
     // Merge default (option "0") keys from each option group
-    for (_group, options) in &layouts.option_keys {
+    for options in layouts.option_keys.values() {
         if let Some(default_keys) = options.get("0") {
             for key in default_keys {
                 if !key.d {

@@ -291,15 +291,13 @@ impl App {
         keymap.restore_layers(loaded.layers);
 
         // Restore macros directly to device if present
-        if let Some(macro_bytes) = loaded.macros {
-            if let Some(conn) = self.connection.as_ref() {
-                if let Err(e) = conn.write_macro_bytes(macro_bytes) {
+        if let Some(macro_bytes) = loaded.macros
+            && let Some(conn) = self.connection.as_ref()
+                && let Err(e) = conn.write_macro_bytes(macro_bytes) {
                     self.status =
                         Some(StatusMessage::error(format!("Macro restore failed: {e}")));
                     return;
                 }
-            }
-        }
 
         self.status = Some(StatusMessage::info(
             "Backup restored (press w to save keymaps to device)",
@@ -431,6 +429,7 @@ impl App {
         }
     }
 
+    #[allow(clippy::needless_pass_by_value)]
     pub fn handle_event(&mut self, event: Event) {
         if let Event::Key(key) = event {
             if self.backup_picker.active {
@@ -456,16 +455,14 @@ impl App {
         }
 
         match key.code {
-            KeyCode::Up => {
-                if self.device_selected > 0 {
+            KeyCode::Up
+                if self.device_selected > 0 => {
                     self.device_selected -= 1;
                 }
-            }
-            KeyCode::Down => {
-                if self.device_selected + 1 < self.devices.len() {
+            KeyCode::Down
+                if self.device_selected + 1 < self.devices.len() => {
                     self.device_selected += 1;
                 }
-            }
             KeyCode::Enter => {
                 if let Err(e) = self.connect_selected() {
                     self.status = Some(StatusMessage::error(format!("Connect failed: {e}")));
@@ -582,47 +579,42 @@ impl App {
                     keymap.prev_layer();
                 }
             }
-            KeyCode::Enter => {
-                if self.keymap.as_ref().is_some_and(|km| km.selected_key.is_some()) {
+            KeyCode::Enter
+                if self.keymap.as_ref().is_some_and(|km| km.selected_key.is_some()) => {
                     self.key_picker.open();
                 }
-            }
             KeyCode::Char('u') => {
-                if let Some(keymap) = &mut self.keymap {
-                    if keymap.undo().is_some() {
+                if let Some(keymap) = &mut self.keymap
+                    && keymap.undo().is_some() {
                         self.status = Some(StatusMessage::info("Undo"));
                     }
-                }
             }
             KeyCode::Char('r') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                if let Some(keymap) = &mut self.keymap {
-                    if keymap.redo().is_some() {
+                if let Some(keymap) = &mut self.keymap
+                    && keymap.redo().is_some() {
                         self.status = Some(StatusMessage::info("Redo"));
                     }
-                }
             }
             KeyCode::Char('y') => {
-                if let Some(keymap) = &self.keymap {
-                    if let Some(key_idx) = keymap.selected_key {
+                if let Some(keymap) = &self.keymap
+                    && let Some(key_idx) = keymap.selected_key {
                         let key = &self.positioned_keys[key_idx];
                         let kc = keymap.get_keycode(key);
                         self.clipboard_keycode = Some(kc);
                         let label = crate::keyboard::keycodes::keycode_label(kc);
                         self.status = Some(StatusMessage::info(format!("Yanked: {label}")));
                     }
-                }
             }
             KeyCode::Char('p') => {
                 if let Some(kc) = self.clipboard_keycode {
-                    if let Some(keymap) = &mut self.keymap {
-                        if let Some(key_idx) = keymap.selected_key {
+                    if let Some(keymap) = &mut self.keymap
+                        && let Some(key_idx) = keymap.selected_key {
                             let key = self.positioned_keys[key_idx].clone();
                             keymap.set_keycode(&key, kc);
                             let label = crate::keyboard::keycodes::keycode_label(kc);
                             self.status =
                                 Some(StatusMessage::info(format!("Pasted: {label}")));
                         }
-                    }
                 } else {
                     self.status = Some(StatusMessage::info("Nothing to paste"));
                 }
@@ -698,12 +690,11 @@ impl App {
                     KeyCode::Char('g') => self.key_picker.pending_g = true,
                     KeyCode::Enter => {
                         if let Some(keycode) = self.key_picker.confirm_selection() {
-                            if let Some(keymap) = &mut self.keymap {
-                                if let Some(key_idx) = keymap.selected_key {
+                            if let Some(keymap) = &mut self.keymap
+                                && let Some(key_idx) = keymap.selected_key {
                                     let key = &self.positioned_keys[key_idx];
                                     keymap.set_keycode(key, keycode);
                                 }
-                            }
                             self.key_picker.close();
                         }
                     }
@@ -719,12 +710,11 @@ impl App {
                 KeyCode::Backspace => self.key_picker.backspace(),
                 KeyCode::Enter => {
                     if let Some(keycode) = self.key_picker.confirm_selection() {
-                        if let Some(keymap) = &mut self.keymap {
-                            if let Some(key_idx) = keymap.selected_key {
+                        if let Some(keymap) = &mut self.keymap
+                            && let Some(key_idx) = keymap.selected_key {
                                 let key = &self.positioned_keys[key_idx];
                                 keymap.set_keycode(key, keycode);
                             }
-                        }
                         self.key_picker.close();
                     }
                 }
@@ -788,8 +778,8 @@ impl App {
                     }
                     KeyCode::Char('p') => {
                         if let Some(text) = self.clipboard_macro.clone() {
-                            if let Some(state) = &mut self.macro_state {
-                                if let Some(m) = state.macros.get_mut(state.selected_macro) {
+                            if let Some(state) = &mut self.macro_state
+                                && let Some(m) = state.macros.get_mut(state.selected_macro) {
                                     *m = text;
                                     state.dirty = true;
                                     self.status = Some(StatusMessage::info(format!(
@@ -797,7 +787,6 @@ impl App {
                                         state.selected_macro
                                     )));
                                 }
-                            }
                         } else {
                             self.status = Some(StatusMessage::info("Nothing to paste"));
                         }

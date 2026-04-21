@@ -39,12 +39,11 @@ pub struct StatusBarWidget<'a> {
 
 impl Widget for StatusBarWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        if let Some(msg) = self.message {
-            if !msg.is_expired() {
+        if let Some(msg) = self.message
+            && !msg.is_expired() {
                 Paragraph::new(msg.text.as_str())
                     .style(msg.style)
                     .render(area, buf);
             }
-        }
     }
 }

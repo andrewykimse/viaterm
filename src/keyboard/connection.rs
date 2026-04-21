@@ -35,8 +35,7 @@ impl KeyboardConnection {
 
         if protocol_version == 0 || protocol_version == 0xFFFF {
             bail!(
-                "Invalid protocol version {:#06x} — device may not support VIA",
-                protocol_version
+                "Invalid protocol version {protocol_version:#06x} — device may not support VIA"
             );
         }
 

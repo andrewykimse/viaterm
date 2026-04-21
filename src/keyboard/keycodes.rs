@@ -103,7 +103,7 @@ pub fn keycode_label(code: u16) -> String {
             format!("MT({mod_str},{base})")
         }
 
-        _ => format!("{:#06X}", code),
+        _ => format!("{code:#06X}"),
     }
 }
 

@@ -67,7 +67,7 @@ pub fn list_backups(vendor_id: u16, product_id: u16) -> Result<Vec<BackupEntry>>
         _ => return Ok(Vec::new()),
     };
 
-    let prefix = format!("{:04X}_{:04X}_", vendor_id, product_id);
+    let prefix = format!("{vendor_id:04X}_{product_id:04X}_");
     let mut entries = Vec::new();
 
     for entry in fs::read_dir(&dir).context("Failed to read backup directory")? {

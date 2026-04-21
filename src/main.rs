@@ -62,11 +62,10 @@ fn run(
             return Ok(());
         }
 
-        if let Some(event) = event::poll_event(Duration::from_millis(100))? {
-            if !matches!(event, Event::Resize(_, _)) {
+        if let Some(event) = event::poll_event(Duration::from_millis(100))?
+            && !matches!(event, Event::Resize(_, _)) {
                 app.handle_event(event);
             }
-        }
     }
 }
 

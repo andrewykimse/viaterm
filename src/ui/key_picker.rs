@@ -219,7 +219,7 @@ impl Widget for KeyPickerWidget<'_> {
             .iter()
             .position(|c| *c == self.state.category)
             .unwrap_or(0);
-        let tabs = Tabs::new(cat_names.iter().map(|s| s.to_string()))
+        let tabs = Tabs::new(cat_names.iter().map(std::string::ToString::to_string))
             .select(cat_idx)
             .style(Style::default().fg(Color::DarkGray))
             .highlight_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD));

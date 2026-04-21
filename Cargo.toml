@@ -5,6 +5,25 @@ edition = "2024"
 license = "GPL-3.0-only"
 description = "Terminal-based VIA keyboard configurator"
 
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+# Clarity
+checked_conversions = "warn"
+
+# Clarity
+needless_pass_by_value = "warn"
+redundant_closure_for_method_calls = "warn"
+semicolon_if_nothing_returned = "warn"
+uninlined_format_args = "warn"
+unnested_or_patterns = "warn"
+
+# Allow these in test code and static tables
+too_many_lines = "allow"
+similar_names = "allow"
+unreadable_literal = "allow"
+
 [[bin]]
 name = "via"
 path = "src/main.rs"

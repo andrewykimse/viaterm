@@ -37,8 +37,7 @@ pub fn fetch_definition(vendor_id: u16, product_id: u16, protocol_version: u16) 
 
     // Fetch from usevia.app
     let url = format!(
-        "https://usevia.app/definitions/{}/{}.json",
-        version, vendor_product_id
+        "https://usevia.app/definitions/{version}/{vendor_product_id}.json"
     );
 
     tracing::info!("Fetching definition from {}", url);
@@ -47,8 +46,7 @@ pub fn fetch_definition(vendor_id: u16, product_id: u16, protocol_version: u16) 
         .call()
         .with_context(|| {
             format!(
-                "Failed to fetch definition for VID:{:04X} PID:{:04X} from {}",
-                vendor_id, product_id, url
+                "Failed to fetch definition for VID:{vendor_id:04X} PID:{product_id:04X} from {url}"
             )
         })?
         .body_mut()

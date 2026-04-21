@@ -102,12 +102,11 @@ impl Widget for KeyboardLayoutWidget<'_> {
             if let Some(bg) = bg_color {
                 for fy in (y1 + 1)..y2 {
                     for fx in (x1 + 1)..x2 {
-                        if fx < area.right() && fy < area.bottom() {
-                            if let Some(cell) = buf.cell_mut((fx, fy)) {
+                        if fx < area.right() && fy < area.bottom()
+                            && let Some(cell) = buf.cell_mut((fx, fy)) {
                                 cell.set_char(' ');
                                 cell.set_bg(bg);
                             }
-                        }
                     }
                 }
             }

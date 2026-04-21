@@ -196,8 +196,8 @@ pub fn encode_macros(macros: &[String]) -> Vec<u8> {
                         "up" => Some(SS_UP),
                         _ => None,
                     };
-                    let key_byte = if key.starts_with("0x") {
-                        u8::from_str_radix(&key[2..], 16).ok()
+                    let key_byte = if let Some(hex) = key.strip_prefix("0x") {
+                        u8::from_str_radix(hex, 16).ok()
                     } else {
                         keycode_from_name(key)
                     };
@@ -289,7 +289,7 @@ impl MacroState {
     pub fn current_macro(&self) -> &str {
         self.macros
             .get(self.selected_macro)
-            .map(|s| s.as_str())
+            .map(std::string::String::as_str)
             .unwrap_or("")
     }
 
@@ -305,32 +305,28 @@ impl MacroState {
         if self.cursor_pos == 0 {
             return;
         }
-        if let Some(m) = self.macros.get_mut(self.selected_macro) {
-            if let Some((pos, ch)) = m.char_indices().rev().find(|(i, _)| *i < self.cursor_pos) {
+        if let Some(m) = self.macros.get_mut(self.selected_macro)
+            && let Some((pos, ch)) = m.char_indices().rev().find(|(i, _)| *i < self.cursor_pos) {
                 self.cursor_pos = pos;
                 m.remove(pos);
                 let _ = ch; // consumed
                 self.dirty = true;
             }
-        }
     }
 
     pub fn cursor_left(&mut self) {
-        if let Some(m) = self.macros.get(self.selected_macro) {
-            if let Some((pos, _)) = m.char_indices().rev().find(|(i, _)| *i < self.cursor_pos) {
+        if let Some(m) = self.macros.get(self.selected_macro)
+            && let Some((pos, _)) = m.char_indices().rev().find(|(i, _)| *i < self.cursor_pos) {
                 self.cursor_pos = pos;
             }
-        }
     }
 
     pub fn cursor_right(&mut self) {
-        if let Some(m) = self.macros.get(self.selected_macro) {
-            if let Some((pos, ch)) = m.char_indices().find(|(i, _)| *i >= self.cursor_pos) {
-                if pos == self.cursor_pos {
+        if let Some(m) = self.macros.get(self.selected_macro)
+            && let Some((pos, ch)) = m.char_indices().find(|(i, _)| *i >= self.cursor_pos)
+                && pos == self.cursor_pos {
                     self.cursor_pos = pos + ch.len_utf8();
                 }
-            }
-        }
     }
 
     pub fn clear_current(&mut self) {
@@ -364,15 +360,14 @@ impl MacroState {
         let has_gui = modifiers.contains(KeyModifiers::SUPER);
 
         // Check if it's a plain printable char with no modifiers (or just shift for uppercase)
-        if let KeyCode::Char(c) = code {
-            if !has_ctrl && !has_alt && !has_gui {
+        if let KeyCode::Char(c) = code
+            && !has_ctrl && !has_alt && !has_gui {
                 // Plain character — insert as literal ASCII
                 m.push(c);
                 self.cursor_pos = m.len();
                 self.dirty = true;
                 return;
             }
-        }
 
         // For modified keys or special keys, wrap with modifier down/up
         if has_ctrl {
@@ -675,54 +670,54 @@ mod tests {
 /// Map a crossterm KeyCode to a QMK keycode name for macro recording.
 fn crossterm_key_to_qmk(code: &KeyCode) -> Option<&'static str> {
     match code {
-        KeyCode::Char('a') | KeyCode::Char('A') => Some("KC_A"),
-        KeyCode::Char('b') | KeyCode::Char('B') => Some("KC_B"),
-        KeyCode::Char('c') | KeyCode::Char('C') => Some("KC_C"),
-        KeyCode::Char('d') | KeyCode::Char('D') => Some("KC_D"),
-        KeyCode::Char('e') | KeyCode::Char('E') => Some("KC_E"),
-        KeyCode::Char('f') | KeyCode::Char('F') => Some("KC_F"),
-        KeyCode::Char('g') | KeyCode::Char('G') => Some("KC_G"),
-        KeyCode::Char('h') | KeyCode::Char('H') => Some("KC_H"),
-        KeyCode::Char('i') | KeyCode::Char('I') => Some("KC_I"),
-        KeyCode::Char('j') | KeyCode::Char('J') => Some("KC_J"),
-        KeyCode::Char('k') | KeyCode::Char('K') => Some("KC_K"),
-        KeyCode::Char('l') | KeyCode::Char('L') => Some("KC_L"),
-        KeyCode::Char('m') | KeyCode::Char('M') => Some("KC_M"),
-        KeyCode::Char('n') | KeyCode::Char('N') => Some("KC_N"),
-        KeyCode::Char('o') | KeyCode::Char('O') => Some("KC_O"),
-        KeyCode::Char('p') | KeyCode::Char('P') => Some("KC_P"),
-        KeyCode::Char('q') | KeyCode::Char('Q') => Some("KC_Q"),
-        KeyCode::Char('r') | KeyCode::Char('R') => Some("KC_R"),
-        KeyCode::Char('s') | KeyCode::Char('S') => Some("KC_S"),
-        KeyCode::Char('t') | KeyCode::Char('T') => Some("KC_T"),
-        KeyCode::Char('u') | KeyCode::Char('U') => Some("KC_U"),
-        KeyCode::Char('v') | KeyCode::Char('V') => Some("KC_V"),
-        KeyCode::Char('w') | KeyCode::Char('W') => Some("KC_W"),
-        KeyCode::Char('x') | KeyCode::Char('X') => Some("KC_X"),
-        KeyCode::Char('y') | KeyCode::Char('Y') => Some("KC_Y"),
-        KeyCode::Char('z') | KeyCode::Char('Z') => Some("KC_Z"),
-        KeyCode::Char('1') | KeyCode::Char('!') => Some("KC_1"),
-        KeyCode::Char('2') | KeyCode::Char('@') => Some("KC_2"),
-        KeyCode::Char('3') | KeyCode::Char('#') => Some("KC_3"),
-        KeyCode::Char('4') | KeyCode::Char('$') => Some("KC_4"),
-        KeyCode::Char('5') | KeyCode::Char('%') => Some("KC_5"),
-        KeyCode::Char('6') | KeyCode::Char('^') => Some("KC_6"),
-        KeyCode::Char('7') | KeyCode::Char('&') => Some("KC_7"),
-        KeyCode::Char('8') | KeyCode::Char('*') => Some("KC_8"),
-        KeyCode::Char('9') | KeyCode::Char('(') => Some("KC_9"),
-        KeyCode::Char('0') | KeyCode::Char(')') => Some("KC_0"),
+        KeyCode::Char('a' | 'A') => Some("KC_A"),
+        KeyCode::Char('b' | 'B') => Some("KC_B"),
+        KeyCode::Char('c' | 'C') => Some("KC_C"),
+        KeyCode::Char('d' | 'D') => Some("KC_D"),
+        KeyCode::Char('e' | 'E') => Some("KC_E"),
+        KeyCode::Char('f' | 'F') => Some("KC_F"),
+        KeyCode::Char('g' | 'G') => Some("KC_G"),
+        KeyCode::Char('h' | 'H') => Some("KC_H"),
+        KeyCode::Char('i' | 'I') => Some("KC_I"),
+        KeyCode::Char('j' | 'J') => Some("KC_J"),
+        KeyCode::Char('k' | 'K') => Some("KC_K"),
+        KeyCode::Char('l' | 'L') => Some("KC_L"),
+        KeyCode::Char('m' | 'M') => Some("KC_M"),
+        KeyCode::Char('n' | 'N') => Some("KC_N"),
+        KeyCode::Char('o' | 'O') => Some("KC_O"),
+        KeyCode::Char('p' | 'P') => Some("KC_P"),
+        KeyCode::Char('q' | 'Q') => Some("KC_Q"),
+        KeyCode::Char('r' | 'R') => Some("KC_R"),
+        KeyCode::Char('s' | 'S') => Some("KC_S"),
+        KeyCode::Char('t' | 'T') => Some("KC_T"),
+        KeyCode::Char('u' | 'U') => Some("KC_U"),
+        KeyCode::Char('v' | 'V') => Some("KC_V"),
+        KeyCode::Char('w' | 'W') => Some("KC_W"),
+        KeyCode::Char('x' | 'X') => Some("KC_X"),
+        KeyCode::Char('y' | 'Y') => Some("KC_Y"),
+        KeyCode::Char('z' | 'Z') => Some("KC_Z"),
+        KeyCode::Char('1' | '!') => Some("KC_1"),
+        KeyCode::Char('2' | '@') => Some("KC_2"),
+        KeyCode::Char('3' | '#') => Some("KC_3"),
+        KeyCode::Char('4' | '$') => Some("KC_4"),
+        KeyCode::Char('5' | '%') => Some("KC_5"),
+        KeyCode::Char('6' | '^') => Some("KC_6"),
+        KeyCode::Char('7' | '&') => Some("KC_7"),
+        KeyCode::Char('8' | '*') => Some("KC_8"),
+        KeyCode::Char('9' | '(') => Some("KC_9"),
+        KeyCode::Char('0' | ')') => Some("KC_0"),
         KeyCode::Char(' ') => Some("KC_SPC"),
-        KeyCode::Char('-') | KeyCode::Char('_') => Some("KC_MINS"),
-        KeyCode::Char('=') | KeyCode::Char('+') => Some("KC_EQL"),
-        KeyCode::Char('[') | KeyCode::Char('{') => Some("KC_LBRC"),
-        KeyCode::Char(']') | KeyCode::Char('}') => Some("KC_RBRC"),
-        KeyCode::Char('\\') | KeyCode::Char('|') => Some("KC_BSLS"),
-        KeyCode::Char(';') | KeyCode::Char(':') => Some("KC_SCLN"),
-        KeyCode::Char('\'') | KeyCode::Char('"') => Some("KC_QUOT"),
-        KeyCode::Char('`') | KeyCode::Char('~') => Some("KC_GRV"),
-        KeyCode::Char(',') | KeyCode::Char('<') => Some("KC_COMM"),
-        KeyCode::Char('.') | KeyCode::Char('>') => Some("KC_DOT"),
-        KeyCode::Char('/') | KeyCode::Char('?') => Some("KC_SLSH"),
+        KeyCode::Char('-' | '_') => Some("KC_MINS"),
+        KeyCode::Char('=' | '+') => Some("KC_EQL"),
+        KeyCode::Char('[' | '{') => Some("KC_LBRC"),
+        KeyCode::Char(']' | '}') => Some("KC_RBRC"),
+        KeyCode::Char('\\' | '|') => Some("KC_BSLS"),
+        KeyCode::Char(';' | ':') => Some("KC_SCLN"),
+        KeyCode::Char('\'' | '"') => Some("KC_QUOT"),
+        KeyCode::Char('`' | '~') => Some("KC_GRV"),
+        KeyCode::Char(',' | '<') => Some("KC_COMM"),
+        KeyCode::Char('.' | '>') => Some("KC_DOT"),
+        KeyCode::Char('/' | '?') => Some("KC_SLSH"),
         KeyCode::Enter => Some("KC_ENT"),
         KeyCode::Backspace => Some("KC_BSPC"),
         KeyCode::Tab | KeyCode::BackTab => Some("KC_TAB"),

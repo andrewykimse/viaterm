@@ -94,15 +94,14 @@ impl LightingState {
 
     /// Adjust the selected parameter by `delta` (positive = increase).
     pub fn adjust(&mut self, delta: i16) {
-        if let Some(section) = self.sections.get_mut(self.active_section) {
-            if let Some(param) = section.params.get_mut(self.selected_param) {
+        if let Some(section) = self.sections.get_mut(self.active_section)
+            && let Some(param) = section.params.get_mut(self.selected_param) {
                 let new_val = (param.value as i16 + delta).clamp(0, param.max as i16) as u8;
                 if new_val != param.value {
                     param.value = new_val;
                     self.dirty = true;
                 }
             }
-        }
     }
 }
 
