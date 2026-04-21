@@ -7,6 +7,7 @@ pub enum KeycodeCategory {
     FunctionKeys,
     Media,
     NumpadKeys,
+    Macros,
     LayerFunctions,
     Special,
 }
@@ -19,6 +20,7 @@ impl KeycodeCategory {
         Self::FunctionKeys,
         Self::Media,
         Self::NumpadKeys,
+        Self::Macros,
         Self::LayerFunctions,
         Self::Special,
     ];
@@ -31,6 +33,7 @@ impl KeycodeCategory {
             Self::FunctionKeys => "Function",
             Self::Media => "Media",
             Self::NumpadKeys => "Numpad",
+            Self::Macros => "Macros",
             Self::LayerFunctions => "Layers",
             Self::Special => "Special",
         }
@@ -278,6 +281,24 @@ static KEYCODES: &[KeycodeEntry] = &[
     KeycodeEntry { code: 0x61, name: "Numpad 9", label: "P9", category: NumpadKeys },
     KeycodeEntry { code: 0x62, name: "Numpad 0", label: "P0", category: NumpadKeys },
     KeycodeEntry { code: 0x63, name: "Numpad .", label: "P.", category: NumpadKeys },
+
+    // Macros
+    KeycodeEntry { code: 0x7700, name: "Macro 0", label: "M0", category: Macros },
+    KeycodeEntry { code: 0x7701, name: "Macro 1", label: "M1", category: Macros },
+    KeycodeEntry { code: 0x7702, name: "Macro 2", label: "M2", category: Macros },
+    KeycodeEntry { code: 0x7703, name: "Macro 3", label: "M3", category: Macros },
+    KeycodeEntry { code: 0x7704, name: "Macro 4", label: "M4", category: Macros },
+    KeycodeEntry { code: 0x7705, name: "Macro 5", label: "M5", category: Macros },
+    KeycodeEntry { code: 0x7706, name: "Macro 6", label: "M6", category: Macros },
+    KeycodeEntry { code: 0x7707, name: "Macro 7", label: "M7", category: Macros },
+    KeycodeEntry { code: 0x7708, name: "Macro 8", label: "M8", category: Macros },
+    KeycodeEntry { code: 0x7709, name: "Macro 9", label: "M9", category: Macros },
+    KeycodeEntry { code: 0x770A, name: "Macro 10", label: "M10", category: Macros },
+    KeycodeEntry { code: 0x770B, name: "Macro 11", label: "M11", category: Macros },
+    KeycodeEntry { code: 0x770C, name: "Macro 12", label: "M12", category: Macros },
+    KeycodeEntry { code: 0x770D, name: "Macro 13", label: "M13", category: Macros },
+    KeycodeEntry { code: 0x770E, name: "Macro 14", label: "M14", category: Macros },
+    KeycodeEntry { code: 0x770F, name: "Macro 15", label: "M15", category: Macros },
 
     // Layer functions (these are placeholders — actual codes are computed)
     KeycodeEntry { code: 0x5110, name: "MO(0)", label: "MO(0)", category: LayerFunctions },
