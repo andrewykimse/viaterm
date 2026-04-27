@@ -22,6 +22,7 @@ pub struct PositionedKey {
 /// Convert layout key definitions into positioned keys for rendering.
 /// Merges in default option keys (option "0" for each group) so that
 /// keys like backspace, enter, etc. that live in optionKeys are included.
+/// Applies rotation transforms so that angled layouts (e.g. Alice) render correctly.
 pub fn parse_layout(layouts: &Layouts) -> Vec<PositionedKey> {
     let mut all_keys: Vec<&KeyDefinition> = layouts.keys.iter().filter(|k| !k.d).collect();
 
@@ -36,26 +37,61 @@ pub fn parse_layout(layouts: &Layouts) -> Vec<PositionedKey> {
         }
     }
 
-    // Sort by position for consistent navigation order (top-to-bottom, left-to-right)
-    all_keys.sort_by(|a, b| {
+    // Compute rotated positions for each key
+    let mut positioned: Vec<PositionedKey> = all_keys
+        .iter()
+        .enumerate()
+        .map(|(i, k)| {
+            let (x, y) = if k.r != 0.0 {
+                // Rotate the key center around (rx, ry), then convert back to top-left
+                let cx = k.x + k.w / 2.0;
+                let cy = k.y + k.h / 2.0;
+                let angle = k.r.to_radians();
+                let cos_a = angle.cos();
+                let sin_a = angle.sin();
+                let dx = cx - k.rx;
+                let dy = cy - k.ry;
+                let rcx = k.rx + dx * cos_a - dy * sin_a;
+                let rcy = k.ry + dx * sin_a + dy * cos_a;
+                (rcx - k.w / 2.0, rcy - k.h / 2.0)
+            } else {
+                (k.x, k.y)
+            };
+            PositionedKey {
+                x,
+                y,
+                w: k.w,
+                h: k.h,
+                row: k.row,
+                col: k.col,
+                index: i,
+            }
+        })
+        .collect();
+
+    // Normalize: shift so minimum x and y are 0
+    let min_x = positioned.iter().map(|k| k.x).fold(f64::MAX, f64::min);
+    let min_y = positioned.iter().map(|k| k.y).fold(f64::MAX, f64::min);
+    if min_x != 0.0 || min_y != 0.0 {
+        for k in &mut positioned {
+            k.x -= min_x;
+            k.y -= min_y;
+        }
+    }
+
+    // Sort by visual position for consistent navigation order (top-to-bottom, left-to-right)
+    positioned.sort_by(|a, b| {
         a.y.partial_cmp(&b.y)
             .unwrap()
             .then(a.x.partial_cmp(&b.x).unwrap())
     });
 
-    all_keys
-        .iter()
-        .enumerate()
-        .map(|(i, k)| PositionedKey {
-            x: k.x,
-            y: k.y,
-            w: k.w,
-            h: k.h,
-            row: k.row,
-            col: k.col,
-            index: i,
-        })
-        .collect()
+    // Re-index after sorting
+    for (i, k) in positioned.iter_mut().enumerate() {
+        k.index = i;
+    }
+
+    positioned
 }
 
 /// Calculate the bounding box of the entire layout in key units.
