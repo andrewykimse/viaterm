@@ -24,6 +24,8 @@
 
           buildInputs = with pkgs; [
             hidapi
+          ] ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [
+            udev
           ] ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
             pkgs.apple-sdk
           ];
