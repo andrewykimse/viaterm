@@ -72,15 +72,15 @@ pub fn keycode_label(code: u16) -> String {
         }
 
         // MO(layer)
-        0x5110..=0x511F => format!("MO({})", code & 0x0F),
+        0x5100..=0x511F => format!("MO({})", code & 0x1F),
         // TG(layer)
-        0x5120..=0x512F => format!("TG({})", code & 0x0F),
-        // TO(layer)
-        0x5130..=0x513F => format!("TO({})", code & 0x0F),
+        0x5140..=0x515F => format!("TG({})", code & 0x1F),
         // TT(layer)
-        0x5140..=0x514F => format!("TT({})", code & 0x0F),
+        0x5180..=0x519F => format!("TT({})", code & 0x1F),
         // OSL(layer)
-        0x5150..=0x515F => format!("OSL({})", code & 0x0F),
+        0x5160..=0x517F => format!("OSL({})", code & 0x1F),
+        // TO(layer)
+        0x5200..=0x521F => format!("TO({})", code & 0x1F),
 
         // Mod-tap: MT(mod, kc) = 0x6000+ range
         0x6000..=0x76FF => {
@@ -330,19 +330,19 @@ static KEYCODES: &[KeycodeEntry] = &[
     KeycodeEntry { code: 0x770E, name: "Macro 14", label: "M14", category: Macros },
     KeycodeEntry { code: 0x770F, name: "Macro 15", label: "M15", category: Macros },
 
-    // Layer functions (these are placeholders — actual codes are computed)
-    KeycodeEntry { code: 0x5110, name: "MO(0)", label: "MO(0)", category: LayerFunctions },
-    KeycodeEntry { code: 0x5111, name: "MO(1)", label: "MO(1)", category: LayerFunctions },
-    KeycodeEntry { code: 0x5112, name: "MO(2)", label: "MO(2)", category: LayerFunctions },
-    KeycodeEntry { code: 0x5113, name: "MO(3)", label: "MO(3)", category: LayerFunctions },
-    KeycodeEntry { code: 0x5120, name: "TG(0)", label: "TG(0)", category: LayerFunctions },
-    KeycodeEntry { code: 0x5121, name: "TG(1)", label: "TG(1)", category: LayerFunctions },
-    KeycodeEntry { code: 0x5122, name: "TG(2)", label: "TG(2)", category: LayerFunctions },
-    KeycodeEntry { code: 0x5123, name: "TG(3)", label: "TG(3)", category: LayerFunctions },
-    KeycodeEntry { code: 0x5130, name: "TO(0)", label: "TO(0)", category: LayerFunctions },
-    KeycodeEntry { code: 0x5131, name: "TO(1)", label: "TO(1)", category: LayerFunctions },
-    KeycodeEntry { code: 0x5132, name: "TO(2)", label: "TO(2)", category: LayerFunctions },
-    KeycodeEntry { code: 0x5133, name: "TO(3)", label: "TO(3)", category: LayerFunctions },
+    // Layer functions — codes must match QMK's quantum keycode ranges
+    KeycodeEntry { code: 0x5100, name: "MO(0)", label: "MO(0)", category: LayerFunctions },
+    KeycodeEntry { code: 0x5101, name: "MO(1)", label: "MO(1)", category: LayerFunctions },
+    KeycodeEntry { code: 0x5102, name: "MO(2)", label: "MO(2)", category: LayerFunctions },
+    KeycodeEntry { code: 0x5103, name: "MO(3)", label: "MO(3)", category: LayerFunctions },
+    KeycodeEntry { code: 0x5140, name: "TG(0)", label: "TG(0)", category: LayerFunctions },
+    KeycodeEntry { code: 0x5141, name: "TG(1)", label: "TG(1)", category: LayerFunctions },
+    KeycodeEntry { code: 0x5142, name: "TG(2)", label: "TG(2)", category: LayerFunctions },
+    KeycodeEntry { code: 0x5143, name: "TG(3)", label: "TG(3)", category: LayerFunctions },
+    KeycodeEntry { code: 0x5200, name: "TO(0)", label: "TO(0)", category: LayerFunctions },
+    KeycodeEntry { code: 0x5201, name: "TO(1)", label: "TO(1)", category: LayerFunctions },
+    KeycodeEntry { code: 0x5202, name: "TO(2)", label: "TO(2)", category: LayerFunctions },
+    KeycodeEntry { code: 0x5203, name: "TO(3)", label: "TO(3)", category: LayerFunctions },
 
     // Special
     KeycodeEntry { code: 0x0000, name: "None", label: "____", category: Special },
@@ -384,16 +384,16 @@ mod tests {
 
     #[test]
     fn label_mo() {
-        assert_eq!(keycode_label(0x5110), "MO(0)");
-        assert_eq!(keycode_label(0x5113), "MO(3)");
+        assert_eq!(keycode_label(0x5100), "MO(0)");
+        assert_eq!(keycode_label(0x5103), "MO(3)");
     }
 
     #[test]
     fn label_tg_to_tt_osl() {
-        assert_eq!(keycode_label(0x5121), "TG(1)");
-        assert_eq!(keycode_label(0x5132), "TO(2)");
-        assert_eq!(keycode_label(0x5140), "TT(0)");
-        assert_eq!(keycode_label(0x5153), "OSL(3)");
+        assert_eq!(keycode_label(0x5141), "TG(1)");
+        assert_eq!(keycode_label(0x5202), "TO(2)");
+        assert_eq!(keycode_label(0x5180), "TT(0)");
+        assert_eq!(keycode_label(0x5163), "OSL(3)");
     }
 
     #[test]
