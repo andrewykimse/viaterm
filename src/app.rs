@@ -277,6 +277,7 @@ impl App {
             .as_mut()
             .context("No keymap loaded")?;
 
+        let matrix = keymap.matrix.clone();
         let dirty = keymap.drain_dirty();
         if dirty.is_empty() {
             self.status = Some(StatusMessage::info("No changes to save"));
@@ -285,7 +286,7 @@ impl App {
 
         let count = dirty.len();
         for (layer, row, col, keycode) in dirty {
-            conn.set_keycode(layer, row, col, keycode)?;
+            conn.set_keycode(layer, row, col, keycode, &matrix)?;
         }
 
         self.status = Some(StatusMessage::info(format!("Saved {count} key(s)")));
@@ -810,6 +811,21 @@ impl App {
         }
     }
 
+    fn apply_keycode(&mut self, keycode: u16) {
+        if let Some(keymap) = &mut self.keymap
+            && let Some(key_idx) = keymap.selected_key
+        {
+            let key = &self.positioned_keys[key_idx];
+            keymap.set_keycode(key, keycode);
+
+            // Write immediately to device (matches VIA webapp behavior)
+            if let Err(e) = self.save_keymap() {
+                self.status = Some(StatusMessage::error(format!("Save failed: {e}")));
+            }
+        }
+        self.key_picker.close();
+    }
+
     fn handle_picker_key(&mut self, key: KeyEvent) {
         use crate::ui::key_picker::PickerMode;
 
@@ -867,12 +883,7 @@ impl App {
                     KeyCode::Char('g') => self.key_picker.pending_g = true,
                     KeyCode::Enter => {
                         if let Some(keycode) = self.key_picker.confirm_selection() {
-                            if let Some(keymap) = &mut self.keymap
-                                && let Some(key_idx) = keymap.selected_key {
-                                    let key = &self.positioned_keys[key_idx];
-                                    keymap.set_keycode(key, keycode);
-                                }
-                            self.key_picker.close();
+                            self.apply_keycode(keycode);
                         }
                     }
                     _ => {}
@@ -887,12 +898,7 @@ impl App {
                 KeyCode::Backspace => self.key_picker.backspace(),
                 KeyCode::Enter => {
                     if let Some(keycode) = self.key_picker.confirm_selection() {
-                        if let Some(keymap) = &mut self.keymap
-                            && let Some(key_idx) = keymap.selected_key {
-                                let key = &self.positioned_keys[key_idx];
-                                keymap.set_keycode(key, keycode);
-                            }
-                        self.key_picker.close();
+                        self.apply_keycode(keycode);
                     }
                 }
                 KeyCode::Char(c) => self.key_picker.type_char(c),

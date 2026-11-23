@@ -1,6 +1,7 @@
 use anyhow::{Result, bail};
 
 use qmk_via_api::api::KeyboardApi;
+use qmk_via_api::api_commands::ViaCommandId;
 use qmk_via_api::scan::{KeyboardDeviceInfo, scan_keyboards};
 
 use crate::definition::schema::MatrixInfo;
@@ -72,10 +73,30 @@ impl KeyboardConnection {
         Ok(layers)
     }
 
-    /// Write a single keycode to the device.
-    pub fn set_keycode(&self, layer: u8, row: u8, col: u8, keycode: u16) -> Result<()> {
+    /// Write a single keycode to the device using the buffer API.
+    /// We use DynamicKeymapSetBuffer instead of DynamicKeymapSetKeycode because
+    /// many keyboards don't echo back the full command payload, causing
+    /// BadCommandResponse errors with the per-key API.
+    pub fn set_keycode(
+        &self,
+        layer: u8,
+        row: u8,
+        col: u8,
+        keycode: u16,
+        matrix: &MatrixInfo,
+    ) -> Result<()> {
+        let keys_per_layer = matrix.rows as u16 * matrix.cols as u16;
+        let key_offset = row as u16 * matrix.cols as u16 + col as u16;
+        let byte_offset = (layer as u16 * keys_per_layer + key_offset) * 2;
+
+        let hi = (keycode >> 8) as u8;
+        let lo = (keycode & 0xFF) as u8;
+        let offset_hi = (byte_offset >> 8) as u8;
+        let offset_lo = (byte_offset & 0xFF) as u8;
+
+        let bytes = vec![offset_hi, offset_lo, 2, hi, lo];
         self.api
-            .set_key(layer, row, col, keycode)
+            .hid_command(ViaCommandId::DynamicKeymapSetBuffer, bytes)
             .map_err(via_err(&format!(
                 "Failed to set keycode at layer={layer} row={row} col={col}"
             )))?;

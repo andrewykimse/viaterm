@@ -63,6 +63,15 @@ pub fn keycode_label(code: u16) -> String {
         0x0000 => "____".to_string(),
         0x0001 => "TRNS".to_string(),
 
+        // Mod-tap (new QMK encoding): MT(mod, kc) = 0x2000 | (mods << 8) | kc
+        0x2000..=0x3FFF => {
+            let kc = code & 0xFF;
+            let mods = (code >> 8) & 0x1F;
+            let base = keycode_label(kc);
+            let mod_str = mod_bits_to_string(mods);
+            format!("MT({mod_str},{base})")
+        }
+
         // Layer tap: LT(layer, kc) = 0x4000 | (layer << 8) | kc
         0x4000..=0x4FFF => {
             let layer = (code >> 8) & 0x0F;
@@ -82,7 +91,7 @@ pub fn keycode_label(code: u16) -> String {
         // TO(layer)
         0x5200..=0x521F => format!("TO({})", code & 0x1F),
 
-        // Mod-tap: MT(mod, kc) = 0x6000+ range
+        // Mod-tap (legacy QMK encoding): 0x6000+ range
         0x6000..=0x76FF => {
             let kc = code & 0xFF;
             let mods = (code >> 8) & 0x1F;
@@ -94,7 +103,7 @@ pub fn keycode_label(code: u16) -> String {
         // Macro range
         0x7700..=0x77FF => format!("M{}", code - 0x7700),
 
-        // Remaining mod-tap range
+        // Remaining legacy mod-tap range
         0x7800..=0x7FFF => {
             let kc = code & 0xFF;
             let mods = (code >> 8) & 0x1F;
@@ -130,8 +139,9 @@ pub fn mt_base_keycodes() -> Vec<&'static KeycodeEntry> {
 }
 
 /// Encode an MT keycode from modifier bits and base keycode.
+/// Uses the modern QMK encoding: 0x2000 | (mods << 8) | kc
 pub fn encode_mt(mod_bits: u16, base_kc: u16) -> u16 {
-    0x6000 | (mod_bits << 8) | (base_kc & 0xFF)
+    0x2000 | (mod_bits << 8) | (base_kc & 0xFF)
 }
 
 fn mod_bits_to_string(mods: u16) -> &'static str {
@@ -398,9 +408,16 @@ mod tests {
 
     #[test]
     fn label_mod_tap() {
-        // MT(CTL, A) = 0x6000 | (0x01 << 8) | 0x04
+        // MT(CTL, A) = 0x2000 | (0x01 << 8) | 0x04 (modern encoding)
+        assert_eq!(keycode_label(0x2104), "MT(CTL,A)");
+        // MT(SFT, ENT) = 0x2000 | (0x02 << 8) | 0x28 (modern encoding)
+        assert_eq!(keycode_label(0x2228), "MT(SFT,ENT)");
+    }
+
+    #[test]
+    fn label_mod_tap_legacy() {
+        // Legacy encoding still displays correctly
         assert_eq!(keycode_label(0x6104), "MT(CTL,A)");
-        // MT(SFT, ENT) = 0x6000 | (0x02 << 8) | 0x28
         assert_eq!(keycode_label(0x6228), "MT(SFT,ENT)");
     }
 
@@ -421,18 +438,25 @@ mod tests {
 
     #[test]
     fn encode_mt_ctrl_a() {
-        assert_eq!(encode_mt(0x01, 0x04), 0x6104);
+        assert_eq!(encode_mt(0x01, 0x04), 0x2104);
     }
 
     #[test]
     fn encode_mt_shift_enter() {
-        assert_eq!(encode_mt(0x02, 0x28), 0x6228);
+        assert_eq!(encode_mt(0x02, 0x28), 0x2228);
     }
 
     #[test]
     fn encode_mt_masks_base() {
         // Base keycode should be masked to 8 bits
         assert_eq!(encode_mt(0x01, 0x1FF), encode_mt(0x01, 0xFF));
+    }
+
+    #[test]
+    fn encode_mt_uses_modern_range() {
+        // Encoded MT keycodes must be in 0x2000..=0x3FFF range
+        let code = encode_mt(0x01, 0x29); // CTL_T(ESC)
+        assert!(code >= 0x2000 && code <= 0x3FFF);
     }
 
     // --- filtered_keycodes ---
